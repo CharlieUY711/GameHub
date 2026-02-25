@@ -29,8 +29,8 @@ const WIN_SCORE = 7;
 const TICK_MS = 30; // solo el host corre la física
 
 // Constantes para modo CPU vertical
-const PADDLE_H_VERTICAL = 3.5; // altura de la paleta (vertical)
-const PADDLE_W_VERTICAL = 12; // ancho de la paleta (horizontal)
+const PADDLE_H_VERTICAL = 2; // altura de la paleta (vertical) - más fina
+const PADDLE_W_VERTICAL = 24; // ancho de la paleta (horizontal) - el doble
 
 // ─── Tipos ───────────────────────────────────────────────────────────────────
 type DificultadCPU = 'facil' | 'normal' | 'dificil';
@@ -595,65 +595,76 @@ function Juego({ codigo, jugador, salaInicial, modoCPU, dificultad }: {
       </div>
 
       {/* Canvas */}
-      <div
-        ref={canvasRef}
-        style={modoCPU ? styles.canvasVertical : styles.canvas}
-        onTouchMove={onTouchMove}
-        onMouseMove={onMouseMove}
-      >
-        {modoCPU ? (
-          <>
-            {/* Mesa azul con línea central */}
-            <div style={styles.mesaAzul} />
-            <div style={lineaHorizontal(50)} />
-
-            {/* Paleta CPU (arriba) - horizontal */}
+      <div style={{ position: 'relative', display: 'flex', width: '100%', maxWidth: 500, margin: '0 auto' }}>
+        {/* Nombres fuera de la cancha (izquierda) */}
+        {modoCPU && (
+          <div style={{
+            position: 'absolute',
+            left: '-100px',
+            top: 0,
+            bottom: 0,
+            display: 'flex',
+            flexDirection: 'column',
+            justifyContent: 'space-between',
+            alignItems: 'flex-start',
+            width: '90px',
+            paddingTop: '2%',
+            paddingBottom: '2%',
+          }}>
             <div style={{
-              position: 'absolute',
-              left: `${(paddle2_x || 50) - PADDLE_W_VERTICAL / 2}%`,
-              top: '2%',
-              width: `${PADDLE_W_VERTICAL}%`,
-              height: `${PADDLE_H_VERTICAL}%`,
-              background: '#4ECDC4',
-              borderRadius: 6,
-              boxShadow: '0 0 12px #4ECDC480',
-              transition: 'left 0.03s linear',
-            }} />
-            <div style={{
-              position: 'absolute',
-              left: `${(paddle2_x || 50)}%`,
-              top: `${PADDLE_H_VERTICAL + 2}%`,
-              transform: 'translateX(-50%)',
-              fontSize: 11,
+              fontSize: 12,
               color: '#4ECDC4',
               fontWeight: 700,
               textShadow: '0 0 8px #4ECDC4',
               whiteSpace: 'nowrap',
             }}>CPU</div>
-
-            {/* Paleta Jugador (abajo) - horizontal */}
             <div style={{
-              position: 'absolute',
-              left: `${(paddle1_x || 50) - PADDLE_W_VERTICAL / 2}%`,
-              bottom: '2%',
-              width: `${PADDLE_W_VERTICAL}%`,
-              height: `${PADDLE_H_VERTICAL}%`,
-              background: '#FF6B35',
-              borderRadius: 6,
-              boxShadow: '0 0 12px #FF6B3580',
-              transition: 'left 0.03s linear',
-            }} />
-            <div style={{
-              position: 'absolute',
-              left: `${(paddle1_x || 50)}%`,
-              bottom: `${PADDLE_H_VERTICAL + 2}%`,
-              transform: 'translateX(-50%)',
-              fontSize: 11,
+              fontSize: 12,
               color: '#FF6B35',
               fontWeight: 700,
               textShadow: '0 0 8px #FF6B35',
               whiteSpace: 'nowrap',
             }}>{jugador1 || 'Jugador'}</div>
+          </div>
+        )}
+
+        <div
+          ref={canvasRef}
+          style={modoCPU ? styles.canvasVertical : styles.canvas}
+          onTouchMove={onTouchMove}
+          onMouseMove={onMouseMove}
+        >
+          {modoCPU ? (
+            <>
+              {/* Mesa azul con línea central */}
+              <div style={styles.mesaAzul} />
+              <div style={lineaHorizontal(50)} />
+
+              {/* Paleta CPU (arriba) - horizontal */}
+              <div style={{
+                position: 'absolute',
+                left: `${(paddle2_x || 50) - PADDLE_W_VERTICAL / 2}%`,
+                top: '2%',
+                width: `${PADDLE_W_VERTICAL}%`,
+                height: `${PADDLE_H_VERTICAL}%`,
+                background: '#4ECDC4',
+                borderRadius: 6,
+                boxShadow: '0 0 12px #4ECDC480',
+                transition: 'left 0.03s linear',
+              }} />
+
+              {/* Paleta Jugador (abajo) - horizontal */}
+              <div style={{
+                position: 'absolute',
+                left: `${(paddle1_x || 50) - PADDLE_W_VERTICAL / 2}%`,
+                bottom: '2%',
+                width: `${PADDLE_W_VERTICAL}%`,
+                height: `${PADDLE_H_VERTICAL}%`,
+                background: '#FF6B35',
+                borderRadius: 6,
+                boxShadow: '0 0 12px #FF6B3580',
+                transition: 'left 0.03s linear',
+              }} />
 
             {/* Pelota */}
             <div style={{
@@ -719,6 +730,7 @@ function Juego({ codigo, jugador, salaInicial, modoCPU, dificultad }: {
             </div>
           </>
         )}
+        </div>
       </div>
 
       {/* Game over */}
