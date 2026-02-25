@@ -614,14 +614,9 @@ function Juego({ codigo, jugador, salaInicial, modoCPU, dificultad }: {
       >
         {modoCPU ? (
           <>
-            {/* Mesa azul con líneas blancas */}
+            {/* Mesa azul con línea central */}
             <div style={styles.mesaAzul} />
-            <div style={lineaHorizontal(25)} />
             <div style={lineaHorizontal(50)} />
-            <div style={lineaHorizontal(75)} />
-            <div style={lineaVertical(25)} />
-            <div style={lineaVertical(50)} />
-            <div style={lineaVertical(75)} />
 
             {/* Paleta CPU (arriba) */}
             <div style={{
