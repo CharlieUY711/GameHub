@@ -180,6 +180,29 @@ function netDot(top: number): React.CSSProperties {
   };
 }
 
+// ─── Helper de estilos para líneas ───────────────────────────────────────────
+function lineaHorizontal(top: number): React.CSSProperties {
+  return {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    top: `${top}%`,
+    height: 1,
+    background: '#ffffff60',
+  };
+}
+
+function lineaVertical(left: number): React.CSSProperties {
+  return {
+    position: 'absolute',
+    left: `${left}%`,
+    top: 0,
+    bottom: 0,
+    width: 1,
+    background: '#ffffff60',
+  };
+}
+
 // ─── Lobby ───────────────────────────────────────────────────────────────────
 function Lobby({ nombre, setNombre, codigoInput, setCodigoInput, error, setError, onCrear, onUnirse, onJugarCPU }: any) {
   return (
@@ -593,12 +616,12 @@ function Juego({ codigo, jugador, salaInicial, modoCPU, dificultad }: {
           <>
             {/* Mesa azul con líneas blancas */}
             <div style={styles.mesaAzul} />
-            <div style={styles.lineaHorizontal(25)} />
-            <div style={styles.lineaHorizontal(50)} />
-            <div style={styles.lineaHorizontal(75)} />
-            <div style={styles.lineaVertical(25)} />
-            <div style={styles.lineaVertical(50)} />
-            <div style={styles.lineaVertical(75)} />
+            <div style={lineaHorizontal(25)} />
+            <div style={lineaHorizontal(50)} />
+            <div style={lineaHorizontal(75)} />
+            <div style={lineaVertical(25)} />
+            <div style={lineaVertical(50)} />
+            <div style={lineaVertical(75)} />
 
             {/* Paleta CPU (arriba) */}
             <div style={{
@@ -1033,23 +1056,5 @@ const styles: Record<string, React.CSSProperties> = {
     fontStyle: 'italic',
   },
 };
-
-(styles as any).lineaHorizontal = (top: number): React.CSSProperties => ({
-  position: 'absolute',
-  left: 0,
-  right: 0,
-  top: `${top}%`,
-  height: 1,
-  background: '#ffffff60',
-});
-
-(styles as any).lineaVertical = (left: number): React.CSSProperties => ({
-  position: 'absolute',
-  left: `${left}%`,
-  top: 0,
-  bottom: 0,
-  width: 1,
-  background: '#ffffff60',
-});
 
 export default PongView;
