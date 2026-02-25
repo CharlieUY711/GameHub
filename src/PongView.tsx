@@ -192,17 +192,6 @@ function lineaHorizontal(top: number): React.CSSProperties {
   };
 }
 
-function lineaVertical(left: number): React.CSSProperties {
-  return {
-    position: 'absolute',
-    left: `${left}%`,
-    top: 0,
-    bottom: 0,
-    width: 1,
-    background: '#ffffff60',
-  };
-}
-
 // ─── Lobby ───────────────────────────────────────────────────────────────────
 function Lobby({ nombre, setNombre, codigoInput, setCodigoInput, error, setError, onCrear, onUnirse, onJugarCPU }: any) {
   return (
