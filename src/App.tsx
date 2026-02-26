@@ -14,6 +14,7 @@ function App() {
   if (vista === 'ruleta') return <RuletaView />
   if (vista === 'domino') return <DominoView />
   if (vista === 'escoba') return <EscobaView />
+  if (vista === 'generala') return <GeneralaView />
 
   return (
     <div style={menuStyles.container}>
