@@ -1,13 +1,14 @@
 /**
  * RuletaView.tsx — Ruleta Casino Multijugador
- * Supabase Realtime — funciona en redes distintas
- * Optimizado para celular
+ * Supabase Realtime — todos ven el resultado en tiempo real
+ * Apuestas: número exacto, rojo/negro, par/impar
+ * Fichas virtuales para ganancias/pérdidas
  */
 import React, { useState, useEffect, useRef } from 'react';
 
 // ─── Config Supabase ─────────────────────────────────────────────────────────
-const SUPA_URL = import.meta.env.VITE_SUPABASE_URL || 'https://qhnmxvexkizcsmivfuam.supabase.co';
-const SUPA_KEY = import.meta.env.VITE_SUPABASE_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFobm14dmV4a2l6Y3NtaXZmdWFtIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3MTIyMTI4MSwiZXhwIjoyMDg2Nzk3MjgxfQ.b2N86NyMG4F3CXcgTnzOjqx7AZPyDTa4QFFCtOSK42s';
+const SUPA_URL = import.meta.env.VITE_SUPABASE_URL || '';
+const SUPA_KEY = import.meta.env.VITE_SUPABASE_KEY || '';
 
 const HEADERS = {
   'Content-Type': 'application/json',
@@ -16,45 +17,56 @@ const HEADERS = {
   'Prefer': 'return=representation',
 };
 
-// ─── Constantes ────────────────────────────────────────────────────────────
-const FICHAS_INICIALES = 1000;
-const NUMEROS_RULETA = 37; // 0-36
+// ─── Constantes ─────────────────────────────────────────────────────────────
+const NUMEROS_RULETA = [
+  { num: 0, color: 'verde' },
+  { num: 32, color: 'rojo' }, { num: 15, color: 'negro' }, { num: 19, color: 'rojo' },
+  { num: 4, color: 'negro' }, { num: 21, color: 'rojo' }, { num: 2, color: 'negro' },
+  { num: 25, color: 'rojo' }, { num: 17, color: 'negro' }, { num: 34, color: 'rojo' },
+  { num: 6, color: 'negro' }, { num: 27, color: 'rojo' }, { num: 13, color: 'negro' },
+  { num: 36, color: 'rojo' }, { num: 11, color: 'negro' }, { num: 30, color: 'rojo' },
+  { num: 8, color: 'negro' }, { num: 23, color: 'rojo' }, { num: 10, color: 'negro' },
+  { num: 5, color: 'rojo' }, { num: 24, color: 'negro' }, { num: 16, color: 'rojo' },
+  { num: 33, color: 'negro' }, { num: 1, color: 'rojo' }, { num: 20, color: 'negro' },
+  { num: 14, color: 'rojo' }, { num: 31, color: 'negro' }, { num: 9, color: 'rojo' },
+  { num: 22, color: 'negro' }, { num: 18, color: 'rojo' }, { num: 29, color: 'negro' },
+  { num: 7, color: 'rojo' }, { num: 28, color: 'negro' }, { num: 12, color: 'rojo' },
+  { num: 35, color: 'negro' }, { num: 3, color: 'rojo' }, { num: 26, color: 'negro' },
+];
 
-// Números rojos en la ruleta europea
-const NUMEROS_ROJOS = [1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36];
-const NUMEROS_NEGROS = Array.from({ length: 37 }, (_, i) => i).filter(n => n !== 0 && !NUMEROS_ROJOS.includes(n));
-
-// ─── Tipos ───────────────────────────────────────────────────────────────────
-type TipoApuesta = 'numero' | 'color' | 'paridad' | 'docena';
-
-interface Apuesta {
-  tipo: TipoApuesta;
-  valor: string | number; // 'rojo' | 'negro' | 'par' | 'impar' | '1-12' | '13-24' | '25-36' | número 0-36
-  monto: number;
-}
-
-interface Jugador {
-  nombre: string;
-  fichas: number;
-  apuestas: Apuesta[];
-}
-
-interface EstadoSala {
-  jugadores: Record<string, Jugador>;
-  estado: 'esperando' | 'apostando' | 'girando' | 'resultado';
-  resultado?: number;
-  ganancias?: Record<string, number>;
+interface RuletaViewProps {
+  onBack: () => void;
 }
 
 interface Sala {
   id: string;
-  estado_json: EstadoSala;
-  host: string;
+  estado: 'esperando' | 'apuestas' | 'girando' | 'resultado';
+  jugador1: string | null;
+  jugador2: string | null;
+  numeroGanador: number | null;
+  apuestas: Record<string, Apuesta>;
+  ultimoGanador: number | null;
 }
 
-// ─── Helpers ─────────────────────────────────────────────────────────────────
+interface Apuesta {
+  jugador: string;
+  tipo: 'numero' | 'rojo' | 'negro' | 'par' | 'impar';
+  valor: number; // número específico o 0 para color/paridad
+  fichas: number;
+}
+
+// ─── Helpers ────────────────────────────────────────────────────────────────
 function genCode() {
   return Math.random().toString(36).substring(2, 6).toUpperCase();
+}
+
+function getColor(num: number): 'rojo' | 'negro' | 'verde' {
+  const item = NUMEROS_RULETA.find(n => n.num === num);
+  return item ? item.color : 'verde';
+}
+
+function esPar(num: number): boolean {
+  return num !== 0 && num % 2 === 0;
 }
 
 async function getSala(id: string): Promise<Sala | null> {
@@ -72,87 +84,73 @@ async function patchSala(id: string, data: Partial<Sala>) {
 }
 
 async function crearSala(id: string, nombre: string): Promise<void> {
-  const estadoInicial: EstadoSala = {
-    jugadores: {
-      [nombre]: {
-        nombre,
-        fichas: FICHAS_INICIALES,
-        apuestas: [],
-      },
-    },
-    estado: 'apostando',
-  };
-
   await fetch(`${SUPA_URL}/rest/v1/ruleta_salas`, {
     method: 'POST',
     headers: HEADERS,
     body: JSON.stringify({
       id,
-      host: nombre,
-      estado_json: estadoInicial,
+      estado: 'esperando',
+      jugador1: nombre,
+      jugador2: null,
+      numeroGanador: null,
+      apuestas: {},
+      ultimoGanador: null,
     }),
   });
 }
 
 async function unirSala(id: string, nombre: string): Promise<boolean> {
   const sala = await getSala(id);
-  if (!sala) return false;
-
-  const estado = sala.estado_json;
-  if (estado.jugadores[nombre]) return false; // Ya está en la sala
-
-  estado.jugadores[nombre] = {
-    nombre,
-    fichas: FICHAS_INICIALES,
-    apuestas: [],
-  };
-
-  await patchSala(id, { estado_json: estado });
+  if (!sala || sala.jugador2) return false;
+  await patchSala(id, { jugador2: nombre, estado: 'apuestas' });
   return true;
 }
 
-// ─── Componente principal ────────────────────────────────────────────────────
-export function RuletaView() {
-  const [fase, setFase] = useState<'lobby' | 'sala'>('lobby');
+// ─── Componente principal ───────────────────────────────────────────────────
+export function RuletaView({ onBack }: RuletaViewProps) {
+  const [fase, setFase] = useState<'lobby' | 'sala' | 'juego'>('lobby');
   const [nombre, setNombre] = useState('');
   const [codigo, setCodigo] = useState('');
   const [codigoInput, setCodigoInput] = useState('');
+  const [jugador, setJugador] = useState<1 | 2>(1);
   const [sala, setSala] = useState<Sala | null>(null);
   const [error, setError] = useState('');
-  const [esHost, setEsHost] = useState(false);
+  const [esperando, setEsperando] = useState(false);
 
-  // ── Crear sala ──────────────────────────────────────────────────────────────
   const handleCrear = async () => {
     if (!nombre.trim()) { setError('Ingresá tu nombre'); return; }
     const code = genCode();
     await crearSala(code, nombre.trim());
     setCodigo(code);
-    setEsHost(true);
+    setJugador(1);
     setFase('sala');
+    setEsperando(true);
   };
 
-  // ── Unirse ──────────────────────────────────────────────────────────────────
   const handleUnirse = async () => {
     if (!nombre.trim()) { setError('Ingresá tu nombre'); return; }
     if (!codigoInput.trim()) { setError('Ingresá el código'); return; }
     const ok = await unirSala(codigoInput.toUpperCase(), nombre.trim());
-    if (!ok) { setError('Sala no encontrada'); return; }
+    if (!ok) { setError('Sala no encontrada o ya llena'); return; }
     setCodigo(codigoInput.toUpperCase());
-    setEsHost(false);
-    setFase('sala');
+    setJugador(2);
+    setFase('juego');
   };
 
-  // ── Polling de sala ─────────────────────────────────────────────────────────
   useEffect(() => {
-    if (fase !== 'sala' || !codigo) return;
+    if (fase !== 'sala' || !esperando) return;
     const iv = setInterval(async () => {
       const s = await getSala(codigo);
-      if (s) setSala(s);
-    }, 1000);
+      if (s?.estado === 'apuestas' || s?.estado === 'girando' || s?.estado === 'resultado') {
+        setSala(s);
+        setFase('juego');
+        setEsperando(false);
+        clearInterval(iv);
+      }
+    }, 1500);
     return () => clearInterval(iv);
-  }, [fase, codigo]);
+  }, [fase, esperando, codigo]);
 
-  // ── Render fases ────────────────────────────────────────────────────────────
   if (fase === 'lobby') {
     return (
       <Lobby
@@ -164,30 +162,35 @@ export function RuletaView() {
         setError={setError}
         onCrear={handleCrear}
         onUnirse={handleUnirse}
+        onBack={onBack}
       />
     );
   }
 
-  if (fase === 'sala' && sala) {
+  if (fase === 'sala') {
+    return <SalaEspera codigo={codigo} nombre={nombre} onBack={onBack} />;
+  }
+
+  if (fase === 'juego') {
     return (
-      <SalaApuestas
+      <Juego
         codigo={codigo}
+        jugador={jugador}
         nombre={nombre}
-        sala={sala}
-        esHost={esHost}
-        onActualizarSala={setSala}
+        salaInicial={sala}
+        onBack={onBack}
       />
     );
   }
 
-  return <div style={styles.fullPage}>Cargando...</div>;
+  return null;
 }
 
-// ─── Lobby ───────────────────────────────────────────────────────────────────
-function Lobby({ nombre, setNombre, codigoInput, setCodigoInput, error, setError, onCrear, onUnirse }: any) {
+// ─── Lobby ──────────────────────────────────────────────────────────────────
+function Lobby({ nombre, setNombre, codigoInput, setCodigoInput, error, setError, onCrear, onUnirse, onBack }: any) {
   return (
     <div style={styles.fullPage}>
-      <div style={styles.casinoBg} />
+      <button style={styles.backButton} onClick={onBack}>← Volver</button>
       <div style={styles.lobbyCard}>
         <div style={styles.title}>🎰 RULETA</div>
         <div style={styles.subtitle}>Casino Multijugador</div>
@@ -201,7 +204,7 @@ function Lobby({ nombre, setNombre, codigoInput, setCodigoInput, error, setError
         />
 
         <button style={styles.btnPrimary} onClick={onCrear}>
-          🎲 Crear sala
+          🎰 Crear sala
         </button>
 
         <div style={styles.divider}><span>o uníte con código</span></div>
@@ -223,508 +226,319 @@ function Lobby({ nombre, setNombre, codigoInput, setCodigoInput, error, setError
   );
 }
 
-// ─── Sala de Apuestas ────────────────────────────────────────────────────────
-function SalaApuestas({ codigo, nombre, sala, esHost, onActualizarSala }: {
+// ─── Sala de espera ─────────────────────────────────────────────────────────
+function SalaEspera({ codigo, nombre, onBack }: { codigo: string; nombre: string; onBack: () => void }) {
+  return (
+    <div style={styles.fullPage}>
+      <button style={styles.backButton} onClick={onBack}>← Volver</button>
+      <div style={styles.lobbyCard}>
+        <div style={styles.title}>🎰 RULETA</div>
+        <div style={{ color: '#aaa', fontSize: 15, marginBottom: 24 }}>Hola, <b style={{ color: '#fff' }}>{nombre}</b></div>
+        <div style={{ color: '#888', fontSize: 13, marginBottom: 8 }}>Compartí este código con tu oponente:</div>
+        <div style={styles.codigoGrande}>{codigo}</div>
+        <div style={{ color: '#666', fontSize: 13, marginTop: 20, display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span style={styles.dot} />
+          Esperando oponente...
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Juego ───────────────────────────────────────────────────────────────────
+function Juego({ codigo, jugador, nombre, salaInicial, onBack }: {
   codigo: string;
+  jugador: 1 | 2;
   nombre: string;
-  sala: Sala;
-  esHost: boolean;
-  onActualizarSala: (s: Sala) => void;
+  salaInicial: Sala | null;
+  onBack: () => void;
 }) {
-  const estado = sala.estado_json;
-  const jugador = estado.jugadores[nombre];
-  const [montoApuesta, setMontoApuesta] = useState(10);
-  const [tipoApuesta, setTipoApuesta] = useState<TipoApuesta>('numero');
-  const [valorApuesta, setValorApuesta] = useState<string | number>('');
+  const [sala, setSala] = useState<Sala | null>(salaInicial);
+  const [fichas, setFichas] = useState(1000);
+  const [apuestaActual, setApuestaActual] = useState<{ tipo: string; valor: number; fichas: number } | null>(null);
+  const [rotacion, setRotacion] = useState(0);
   const [girando, setGirando] = useState(false);
-  const [error, setError] = useState('');
-  const ruletaRef = useRef<HTMLDivElement>(null);
+  const ruedaRef = useRef<HTMLDivElement>(null);
+  const isHost = jugador === 1;
 
-  const todosApostaron = Object.values(estado.jugadores).every(j => j.apuestas.length > 0);
+  useEffect(() => {
+    const iv = setInterval(async () => {
+      const s = await getSala(codigo);
+      if (!s) return;
+      setSala(s);
 
-  // ── Agregar apuesta ─────────────────────────────────────────────────────────
-  const handleApostar = async () => {
-    if (!valorApuesta && tipoApuesta === 'numero') {
-      setError('Seleccioná un número');
-      return;
+      if (s.estado === 'girando' && !girando) {
+        setGirando(true);
+        girarRuleta(s.numeroGanador || 0);
+      }
+
+      if (s.estado === 'resultado' && s.numeroGanador !== null) {
+        calcularGanancias(s.numeroGanador, s.apuestas);
+      }
+    }, 500);
+    return () => clearInterval(iv);
+  }, [codigo, girando]);
+
+  const girarRuleta = (numeroGanador: number) => {
+    const indexGanador = NUMEROS_RULETA.findIndex(n => n.num === numeroGanador);
+    const anguloPorNumero = 360 / NUMEROS_RULETA.length;
+    const rotacionFinal = 360 * 5 + (NUMEROS_RULETA.length - indexGanador) * anguloPorNumero;
+    
+    setRotacion(rotacionFinal);
+    
+    setTimeout(() => {
+      setGirando(false);
+    }, 4000);
+  };
+
+  const calcularGanancias = (numeroGanador: number, apuestas: Record<string, Apuesta>) => {
+    const miApuesta = Object.values(apuestas).find(a => a.jugador === nombre);
+    if (!miApuesta) return;
+
+    let ganancia = 0;
+    const colorGanador = getColor(numeroGanador);
+    const parGanador = esPar(numeroGanador);
+
+    if (miApuesta.tipo === 'numero' && miApuesta.valor === numeroGanador) {
+      ganancia = miApuesta.fichas * 36; // Paga 36:1
+    } else if (miApuesta.tipo === 'rojo' && colorGanador === 'rojo') {
+      ganancia = miApuesta.fichas * 2; // Paga 2:1
+    } else if (miApuesta.tipo === 'negro' && colorGanador === 'negro') {
+      ganancia = miApuesta.fichas * 2; // Paga 2:1
+    } else if (miApuesta.tipo === 'par' && parGanador) {
+      ganancia = miApuesta.fichas * 2; // Paga 2:1
+    } else if (miApuesta.tipo === 'impar' && !parGanador && numeroGanador !== 0) {
+      ganancia = miApuesta.fichas * 2; // Paga 2:1
     }
-    if (!valorApuesta && tipoApuesta !== 'numero') {
-      setError('Seleccioná una opción');
-      return;
-    }
-    if (montoApuesta > jugador.fichas) {
-      setError('No tenés suficientes fichas');
-      return;
-    }
-    if (montoApuesta <= 0) {
-      setError('El monto debe ser mayor a 0');
-      return;
-    }
+
+    setFichas(prev => prev - miApuesta.fichas + ganancia);
+  };
+
+  const hacerApuesta = async (tipo: 'numero' | 'rojo' | 'negro' | 'par' | 'impar', valor: number, fichasApostadas: number) => {
+    if (fichas < fichasApostadas || sala?.estado !== 'apuestas') return;
 
     const nuevaApuesta: Apuesta = {
-      tipo: tipoApuesta,
-      valor: tipoApuesta === 'numero' ? Number(valorApuesta) : valorApuesta,
-      monto: montoApuesta,
+      jugador: nombre,
+      tipo,
+      valor,
+      fichas: fichasApostadas,
     };
 
-    const nuevoEstado = { ...estado };
-    nuevoEstado.jugadores[nombre].apuestas.push(nuevaApuesta);
-    nuevoEstado.jugadores[nombre].fichas -= montoApuesta;
-
-    await patchSala(codigo, { estado_json: nuevoEstado });
-    onActualizarSala({ ...sala, estado_json: nuevoEstado });
-    setValorApuesta('');
-    setError('');
+    const apuestasActualizadas = { ...sala?.apuestas, [nombre]: nuevaApuesta };
+    await patchSala(codigo, { apuestas: apuestasActualizadas });
+    setFichas(prev => prev - fichasApostadas);
   };
 
-  // ── Girar ruleta ────────────────────────────────────────────────────────────
-  const handleGirar = async () => {
-    if (!todosApostaron) return;
-
-    setGirando(true);
-    const nuevoEstado = { ...estado, estado: 'girando' as const };
-    await patchSala(codigo, { estado_json: nuevoEstado });
-
-    // Animación de giro (3-5 segundos)
-    const duracion = 3000 + Math.random() * 2000;
-    const resultado = Math.floor(Math.random() * NUMEROS_RULETA);
-    const gradosPorNumero = 360 / NUMEROS_RULETA;
-    
-    // Obtener rotación actual
-    let rotacionActual = 0;
-    if (ruletaRef.current) {
-      const style = window.getComputedStyle(ruletaRef.current);
-      const matrix = style.transform || style.webkitTransform;
-      if (matrix && matrix !== 'none') {
-        const values = matrix.split('(')[1].split(')')[0].split(',');
-        const a = parseFloat(values[0]);
-        const b = parseFloat(values[1]);
-        rotacionActual = Math.round(Math.atan2(b, a) * (180 / Math.PI));
-      }
-    }
-    
-    // Calcular nueva rotación: rotación actual + múltiples vueltas + posición del resultado
-    // El 0 está en la parte superior, así que necesitamos ajustar
-    const posicionResultado = (resultado * gradosPorNumero);
-    const vueltas = 5 + Math.random() * 2; // 5-7 vueltas
-    const nuevaRotacion = rotacionActual + (vueltas * 360) + (360 - posicionResultado);
-
-    if (ruletaRef.current) {
-      ruletaRef.current.style.transition = `transform ${duracion}ms cubic-bezier(0.17, 0.67, 0.12, 0.99)`;
-      ruletaRef.current.style.transform = `rotate(${nuevaRotacion}deg)`;
-    }
-
-    setTimeout(async () => {
-      // Calcular ganancias
-      const ganancias: Record<string, number> = {};
-      
-      Object.entries(nuevoEstado.jugadores).forEach(([nombreJugador, jug]) => {
-        let gananciaTotal = 0;
-        
-        jug.apuestas.forEach(apuesta => {
-          let gano = false;
-          let multiplicador = 1;
-
-          switch (apuesta.tipo) {
-            case 'numero':
-              gano = apuesta.valor === resultado;
-              multiplicador = 35;
-              break;
-            case 'color':
-              if (resultado === 0) {
-                gano = false; // 0 es verde, no gana rojo ni negro
-              } else if (apuesta.valor === 'rojo') {
-                gano = NUMEROS_ROJOS.includes(resultado);
-                multiplicador = 2;
-              } else if (apuesta.valor === 'negro') {
-                gano = NUMEROS_NEGROS.includes(resultado);
-                multiplicador = 2;
-              }
-              break;
-            case 'paridad':
-              if (resultado === 0) {
-                gano = false; // 0 no es par ni impar
-              } else if (apuesta.valor === 'par') {
-                gano = resultado % 2 === 0;
-                multiplicador = 2;
-              } else if (apuesta.valor === 'impar') {
-                gano = resultado % 2 === 1;
-                multiplicador = 2;
-              }
-              break;
-            case 'docena':
-              const num = resultado;
-              if (apuesta.valor === '1-12') {
-                gano = num >= 1 && num <= 12;
-                multiplicador = 3;
-              } else if (apuesta.valor === '13-24') {
-                gano = num >= 13 && num <= 24;
-                multiplicador = 3;
-              } else if (apuesta.valor === '25-36') {
-                gano = num >= 25 && num <= 36;
-                multiplicador = 3;
-              }
-              break;
-          }
-
-          if (gano) {
-            gananciaTotal += apuesta.monto * multiplicador;
-          }
-        });
-
-        ganancias[nombreJugador] = gananciaTotal;
-        nuevoEstado.jugadores[nombreJugador].fichas += gananciaTotal;
-      });
-
-      nuevoEstado.estado = 'resultado';
-      nuevoEstado.resultado = resultado;
-      nuevoEstado.ganancias = ganancias;
-
-      await patchSala(codigo, { estado_json: nuevoEstado });
-      onActualizarSala({ ...sala, estado_json: nuevoEstado });
-      setGirando(false);
-    }, duracion);
+  const iniciarGiro = async () => {
+    if (!isHost || sala?.estado !== 'apuestas') return;
+    const numeroGanador = Math.floor(Math.random() * 37);
+    await patchSala(codigo, { estado: 'girando', numeroGanador });
   };
 
-  // ── Nueva ronda ────────────────────────────────────────────────────────────
-  const handleNuevaRonda = async () => {
-    const nuevoEstado: EstadoSala = {
-      jugadores: Object.fromEntries(
-        Object.entries(estado.jugadores).map(([nombreJugador, jug]) => [
-          nombreJugador,
-          { ...jug, apuestas: [] },
-        ])
-      ),
-      estado: 'apostando',
-    };
-
-    await patchSala(codigo, { estado_json: nuevoEstado });
-    onActualizarSala({ ...sala, estado_json: nuevoEstado });
-    
-    // Resetear ruleta manteniendo la posición actual pero sin transición
-    if (ruletaRef.current) {
-      const style = window.getComputedStyle(ruletaRef.current);
-      const matrix = style.transform || style.webkitTransform;
-      let rotacionActual = 0;
-      if (matrix && matrix !== 'none') {
-        const values = matrix.split('(')[1].split(')')[0].split(',');
-        const a = parseFloat(values[0]);
-        const b = parseFloat(values[1]);
-        rotacionActual = Math.round(Math.atan2(b, a) * (180 / Math.PI));
-      }
-      // Normalizar a 0-360
-      rotacionActual = ((rotacionActual % 360) + 360) % 360;
-      ruletaRef.current.style.transition = 'none';
-      ruletaRef.current.style.transform = `rotate(${rotacionActual}deg)`;
-      // Forzar reflow
-      void ruletaRef.current.offsetHeight;
-    }
+  const resetearRonda = async () => {
+    if (!isHost || sala?.estado !== 'resultado') return;
+    await patchSala(codigo, { estado: 'apuestas', numeroGanador: null, apuestas: {} });
   };
+
+  if (!sala) return <div style={{ ...styles.fullPage, color: '#888', fontSize: 16 }}>Cargando...</div>;
+
+  const numeroGanador = sala.numeroGanador;
+  const colorGanador = numeroGanador !== null ? getColor(numeroGanador) : null;
 
   return (
     <div style={styles.fullPage}>
-      <div style={styles.casinoBg} />
-      
-      <div style={styles.salaContainer}>
-        {/* Header */}
-        <div style={styles.header}>
-          <div style={styles.codigoDisplay}>Sala: {codigo}</div>
-          <div style={styles.fichasDisplay}>
-            💰 {jugador.fichas} fichas
+      <button style={styles.backButton} onClick={onBack}>← Volver</button>
+
+      {/* Header con fichas y estado */}
+      <div style={styles.header}>
+        <div style={styles.fichasContainer}>
+          <span style={styles.fichasLabel}>Fichas:</span>
+          <span style={styles.fichasValor}>{fichas}</span>
+        </div>
+        <div style={styles.estadoContainer}>
+          <span style={styles.estadoLabel}>Estado:</span>
+          <span style={styles.estadoValor}>{sala.estado === 'apuestas' ? 'Apuestas abiertas' : sala.estado === 'girando' ? 'Girando...' : 'Resultado'}</span>
+        </div>
+      </div>
+
+      {/* Rueda */}
+      <div style={styles.ruletaContainer}>
+        <div
+          ref={ruedaRef}
+          style={{
+            ...styles.ruleta,
+            transform: `rotate(${rotacion}deg)`,
+            transition: girando ? 'transform 4s cubic-bezier(0.17, 0.67, 0.12, 0.99)' : 'none',
+          }}
+        >
+          {NUMEROS_RULETA.map((item, index) => {
+            const angulo = (360 / NUMEROS_RULETA.length) * index;
+            const radio = 170;
+            const x = Math.cos((angulo - 90) * (Math.PI / 180)) * radio;
+            const y = Math.sin((angulo - 90) * (Math.PI / 180)) * radio;
+
+            return (
+              <div
+                key={index}
+                style={{
+                  ...styles.numeroRueda,
+                  background: item.color === 'rojo' ? '#c41e3a' : item.color === 'negro' ? '#1a1a1a' : '#0d7d0d',
+                  color: '#fff',
+                  position: 'absolute',
+                  left: `calc(50% + ${x}px)`,
+                  top: `calc(50% + ${y}px)`,
+                  transform: `translate(-50%, -50%) rotate(${angulo + 90}deg)`,
+                  transformOrigin: 'center',
+                }}
+              >
+                {item.num}
+              </div>
+            );
+          })}
+        </div>
+        <div style={styles.puntero} />
+      </div>
+
+      {/* Resultado */}
+      {sala.estado === 'resultado' && numeroGanador !== null && (
+        <div style={styles.resultadoContainer}>
+          <div style={styles.resultadoNumero}>{numeroGanador}</div>
+          <div style={{ ...styles.resultadoColor, color: colorGanador === 'rojo' ? '#c41e3a' : colorGanador === 'negro' ? '#1a1a1a' : '#0d7d0d' }}>
+            {colorGanador?.toUpperCase()}
           </div>
         </div>
+      )}
 
-        {/* Ruleta */}
-        <div style={styles.ruletaContainer}>
-          <div style={styles.ruletaWrapper}>
-            <div ref={ruletaRef} style={styles.ruleta}>
-              {Array.from({ length: NUMEROS_RULETA }, (_, i) => {
-                const esRojo = NUMEROS_ROJOS.includes(i);
-                const esNegro = NUMEROS_NEGROS.includes(i);
-                const esVerde = i === 0;
-                const grados = (i * 360) / NUMEROS_RULETA;
+      {/* Panel de apuestas */}
+      {sala.estado === 'apuestas' && (
+        <div style={styles.apuestasContainer}>
+          <div style={styles.apuestasTitle}>Hacé tu apuesta</div>
 
-                return (
-                  <div
-                    key={i}
-                    style={{
-                      ...styles.numeroRuleta,
-                      background: esVerde ? '#0a5a0a' : esRojo ? '#8b0000' : '#000',
-                      color: '#fff',
-                      transform: `rotate(${grados}deg)`,
-                      transformOrigin: '0% 100%',
-                    }}
-                  >
-                    <span style={{ transform: `rotate(-${grados}deg)` }}>{i}</span>
-                  </div>
-                );
-              })}
+          {/* Apuesta por número */}
+          <div style={styles.apuestaSection}>
+            <div style={styles.apuestaLabel}>Número (1-36):</div>
+            <div style={styles.numerosGrid}>
+              {Array.from({ length: 37 }, (_, i) => (
+                <button
+                  key={i}
+                  style={{
+                    ...styles.numeroBtn,
+                    background: apuestaActual?.tipo === 'numero' && apuestaActual.valor === i ? '#FF6B35' : '#1a1a1a',
+                  }}
+                  onClick={() => setApuestaActual({ tipo: 'numero', valor: i, fichas: 10 })}
+                >
+                  {i}
+                </button>
+              ))}
             </div>
-            <div style={styles.ruletaFlecha}>▼</div>
           </div>
 
-          {estado.estado === 'resultado' && estado.resultado !== undefined && (
-            <div style={styles.resultadoDisplay}>
-              <div style={styles.resultadoNumero}>{estado.resultado}</div>
-              {estado.ganancias && estado.ganancias[nombre] > 0 && (
-                <div style={styles.gananciaDisplay}>
-                  +{estado.ganancias[nombre]} fichas! 🎉
-                </div>
-              )}
+          {/* Apuestas por color/paridad */}
+          <div style={styles.apuestaSection}>
+            <div style={styles.apuestaLabel}>Color / Paridad:</div>
+            <div style={styles.botonesApuesta}>
+              <button
+                style={{
+                  ...styles.apuestaBtn,
+                  background: apuestaActual?.tipo === 'rojo' ? '#c41e3a' : '#1a1a1a',
+                }}
+                onClick={() => setApuestaActual({ tipo: 'rojo', valor: 0, fichas: 10 })}
+              >
+                🔴 ROJO
+              </button>
+              <button
+                style={{
+                  ...styles.apuestaBtn,
+                  background: apuestaActual?.tipo === 'negro' ? '#1a1a1a' : '#1a1a1a',
+                  borderColor: apuestaActual?.tipo === 'negro' ? '#fff' : '#333',
+                }}
+                onClick={() => setApuestaActual({ tipo: 'negro', valor: 0, fichas: 10 })}
+              >
+                ⚫ NEGRO
+              </button>
+              <button
+                style={{
+                  ...styles.apuestaBtn,
+                  background: apuestaActual?.tipo === 'par' ? '#FF6B35' : '#1a1a1a',
+                }}
+                onClick={() => setApuestaActual({ tipo: 'par', valor: 0, fichas: 10 })}
+              >
+                PAR
+              </button>
+              <button
+                style={{
+                  ...styles.apuestaBtn,
+                  background: apuestaActual?.tipo === 'impar' ? '#FF6B35' : '#1a1a1a',
+                }}
+                onClick={() => setApuestaActual({ tipo: 'impar', valor: 0, fichas: 10 })}
+              >
+                IMPAR
+              </button>
+            </div>
+          </div>
+
+          {/* Cantidad de fichas */}
+          {apuestaActual && (
+            <div style={styles.fichasInput}>
+              <div style={styles.apuestaLabel}>Fichas a apostar:</div>
+              <div style={styles.fichasButtons}>
+                {[10, 25, 50, 100].map(f => (
+                  <button
+                    key={f}
+                    style={{
+                      ...styles.fichaBtn,
+                      background: apuestaActual.fichas === f ? '#FF6B35' : '#1a1a1a',
+                    }}
+                    onClick={() => setApuestaActual({ ...apuestaActual, fichas: f })}
+                  >
+                    {f}
+                  </button>
+                ))}
+              </div>
+              <button
+                style={styles.btnConfirmar}
+                onClick={() => {
+                  if (apuestaActual) {
+                    hacerApuesta(apuestaActual.tipo as any, apuestaActual.valor, apuestaActual.fichas);
+                    setApuestaActual(null);
+                  }
+                }}
+              >
+                Confirmar Apuesta
+              </button>
             </div>
           )}
         </div>
+      )}
 
-        {/* Mesa de apuestas */}
-        {estado.estado === 'apostando' && (
-          <div style={styles.mesaApuestas}>
-            <div style={styles.mesaTitle}>Mesa de Apuestas</div>
-
-            {/* Tipo de apuesta */}
-            <div style={styles.tipoApuestaContainer}>
-              <button
-                style={{
-                  ...styles.btnTipoApuesta,
-                  background: tipoApuesta === 'numero' ? '#d4af37' : '#1a1a1a',
-                }}
-                onClick={() => { setTipoApuesta('numero'); setValorApuesta(''); }}
-              >
-                Número (35x)
-              </button>
-              <button
-                style={{
-                  ...styles.btnTipoApuesta,
-                  background: tipoApuesta === 'color' ? '#d4af37' : '#1a1a1a',
-                }}
-                onClick={() => { setTipoApuesta('color'); setValorApuesta(''); }}
-              >
-                Color (2x)
-              </button>
-              <button
-                style={{
-                  ...styles.btnTipoApuesta,
-                  background: tipoApuesta === 'paridad' ? '#d4af37' : '#1a1a1a',
-                }}
-                onClick={() => { setTipoApuesta('paridad'); setValorApuesta(''); }}
-              >
-                Par/Impar (2x)
-              </button>
-              <button
-                style={{
-                  ...styles.btnTipoApuesta,
-                  background: tipoApuesta === 'docena' ? '#d4af37' : '#1a1a1a',
-                }}
-                onClick={() => { setTipoApuesta('docena'); setValorApuesta(''); }}
-              >
-                Docena (3x)
-              </button>
-            </div>
-
-            {/* Selector de valor según tipo */}
-            {tipoApuesta === 'numero' && (
-              <div style={styles.numerosGrid}>
-                {Array.from({ length: NUMEROS_RULETA }, (_, i) => (
-                  <button
-                    key={i}
-                    style={{
-                      ...styles.btnNumero,
-                      background: i === 0 ? '#0a5a0a' : NUMEROS_ROJOS.includes(i) ? '#8b0000' : '#000',
-                      border: valorApuesta === i ? '3px solid #d4af37' : '1px solid #333',
-                    }}
-                    onClick={() => setValorApuesta(i)}
-                  >
-                    {i}
-                  </button>
-                ))}
-              </div>
-            )}
-
-            {tipoApuesta === 'color' && (
-              <div style={styles.opcionesGrid}>
-                <button
-                  style={{
-                    ...styles.btnOpcion,
-                    background: valorApuesta === 'rojo' ? '#8b0000' : '#1a1a1a',
-                    border: valorApuesta === 'rojo' ? '3px solid #d4af37' : '1px solid #333',
-                  }}
-                  onClick={() => setValorApuesta('rojo')}
-                >
-                  🔴 Rojo
-                </button>
-                <button
-                  style={{
-                    ...styles.btnOpcion,
-                    background: valorApuesta === 'negro' ? '#000' : '#1a1a1a',
-                    border: valorApuesta === 'negro' ? '3px solid #d4af37' : '1px solid #333',
-                  }}
-                  onClick={() => setValorApuesta('negro')}
-                >
-                  ⚫ Negro
-                </button>
-              </div>
-            )}
-
-            {tipoApuesta === 'paridad' && (
-              <div style={styles.opcionesGrid}>
-                <button
-                  style={{
-                    ...styles.btnOpcion,
-                    background: valorApuesta === 'par' ? '#d4af37' : '#1a1a1a',
-                    border: valorApuesta === 'par' ? '3px solid #fff' : '1px solid #333',
-                  }}
-                  onClick={() => setValorApuesta('par')}
-                >
-                  Par
-                </button>
-                <button
-                  style={{
-                    ...styles.btnOpcion,
-                    background: valorApuesta === 'impar' ? '#d4af37' : '#1a1a1a',
-                    border: valorApuesta === 'impar' ? '3px solid #fff' : '1px solid #333',
-                  }}
-                  onClick={() => setValorApuesta('impar')}
-                >
-                  Impar
-                </button>
-              </div>
-            )}
-
-            {tipoApuesta === 'docena' && (
-              <div style={styles.opcionesGrid}>
-                <button
-                  style={{
-                    ...styles.btnOpcion,
-                    background: valorApuesta === '1-12' ? '#d4af37' : '#1a1a1a',
-                    border: valorApuesta === '1-12' ? '3px solid #fff' : '1px solid #333',
-                  }}
-                  onClick={() => setValorApuesta('1-12')}
-                >
-                  1-12
-                </button>
-                <button
-                  style={{
-                    ...styles.btnOpcion,
-                    background: valorApuesta === '13-24' ? '#d4af37' : '#1a1a1a',
-                    border: valorApuesta === '13-24' ? '3px solid #fff' : '1px solid #333',
-                  }}
-                  onClick={() => setValorApuesta('13-24')}
-                >
-                  13-24
-                </button>
-                <button
-                  style={{
-                    ...styles.btnOpcion,
-                    background: valorApuesta === '25-36' ? '#d4af37' : '#1a1a1a',
-                    border: valorApuesta === '25-36' ? '3px solid #fff' : '1px solid #333',
-                  }}
-                  onClick={() => setValorApuesta('25-36')}
-                >
-                  25-36
-                </button>
-              </div>
-            )}
-
-            {/* Monto */}
-            <div style={styles.montoContainer}>
-              <div style={styles.montoLabel}>Monto:</div>
-              <div style={styles.montoButtons}>
-                {[10, 25, 50, 100].map(m => (
-                  <button
-                    key={m}
-                    style={{
-                      ...styles.btnMonto,
-                      background: montoApuesta === m ? '#d4af37' : '#1a1a1a',
-                    }}
-                    onClick={() => setMontoApuesta(m)}
-                  >
-                    {m}
-                  </button>
-                ))}
-              </div>
-              <input
-                type="number"
-                style={styles.inputMonto}
-                value={montoApuesta}
-                onChange={e => setMontoApuesta(Number(e.target.value) || 0)}
-                min={1}
-                max={jugador.fichas}
-              />
-            </div>
-
-            {/* Botón apostar */}
-            <button
-              style={{
-                ...styles.btnApostar,
-                opacity: valorApuesta === '' ? 0.5 : 1,
-              }}
-              onClick={handleApostar}
-              disabled={valorApuesta === ''}
-            >
-              Apostar {montoApuesta} fichas
+      {/* Botones de control (solo host) */}
+      {isHost && (
+        <div style={styles.controlButtons}>
+          {sala.estado === 'apuestas' && (
+            <button style={styles.btnGirar} onClick={iniciarGiro}>
+              🎰 GIRAR RULETA
             </button>
-
-            {error && <div style={styles.errorMsg}>{error}</div>}
-
-            {/* Mis apuestas */}
-            {jugador.apuestas.length > 0 && (
-              <div style={styles.misApuestas}>
-                <div style={styles.misApuestasTitle}>Mis apuestas:</div>
-                {jugador.apuestas.map((ap, idx) => (
-                  <div key={idx} style={styles.apuestaItem}>
-                    {ap.tipo === 'numero' && `Número ${ap.valor}`}
-                    {ap.tipo === 'color' && `Color ${ap.valor}`}
-                    {ap.tipo === 'paridad' && ap.valor}
-                    {ap.tipo === 'docena' && `Docena ${ap.valor}`}
-                    {' '}- {ap.monto} fichas
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Botones de control */}
-        {estado.estado === 'apostando' && esHost && (
-          <div style={styles.controlContainer}>
-            <button
-              style={{
-                ...styles.btnGirar,
-                opacity: todosApostaron ? 1 : 0.5,
-              }}
-              onClick={handleGirar}
-              disabled={!todosApostaron || girando}
-            >
-              {todosApostaron ? '🎰 Girar Ruleta' : 'Esperando apuestas...'}
-            </button>
-          </div>
-        )}
-
-        {estado.estado === 'girando' && (
-          <div style={styles.controlContainer}>
-            <div style={styles.girandoText}>🎰 Girando...</div>
-          </div>
-        )}
-
-        {estado.estado === 'resultado' && esHost && (
-          <div style={styles.controlContainer}>
-            <button style={styles.btnNuevaRonda} onClick={handleNuevaRonda}>
+          )}
+          {sala.estado === 'resultado' && (
+            <button style={styles.btnResetear} onClick={resetearRonda}>
               Nueva Ronda
             </button>
+          )}
+        </div>
+      )}
+
+      {/* Jugadores */}
+      <div style={styles.jugadoresContainer}>
+        <div style={styles.jugador}>
+          <span style={styles.jugadorNombre}>{sala.jugador1 || 'Jugador 1'}</span>
+          {jugador === 1 && <span style={styles.tuTurno}>👈 Tú</span>}
+        </div>
+        {sala.jugador2 && (
+          <div style={styles.jugador}>
+            <span style={styles.jugadorNombre}>{sala.jugador2}</span>
+            {jugador === 2 && <span style={styles.tuTurno}>👈 Tú</span>}
           </div>
         )}
-
-        {/* Jugadores */}
-        <div style={styles.jugadoresContainer}>
-          <div style={styles.jugadoresTitle}>Jugadores:</div>
-          {Object.values(estado.jugadores).map((jug, idx) => (
-            <div key={idx} style={styles.jugadorItem}>
-              <span style={{ fontWeight: jug.nombre === nombre ? 700 : 400 }}>
-                {jug.nombre} {jug.nombre === nombre && '(Tú)'}
-              </span>
-              <span style={{ color: '#d4af37' }}>💰 {jug.fichas}</span>
-            </div>
-          ))}
-        </div>
       </div>
     </div>
   );
@@ -737,43 +551,51 @@ const styles: Record<string, React.CSSProperties> = {
     width: '100%',
     minHeight: '100vh',
     background: '#0a0a0a',
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    padding: '20px',
     fontFamily: "'Courier New', monospace",
     overflow: 'auto',
-    userSelect: 'none',
   },
-  casinoBg: {
-    position: 'fixed',
-    inset: 0,
-    background: 'radial-gradient(circle at 50% 50%, #1a0a0a 0%, #0a0a0a 100%)',
-    opacity: 0.3,
-    zIndex: 0,
+  backButton: {
+    position: 'absolute',
+    top: 20,
+    left: 20,
+    background: '#111',
+    border: '1px solid #333',
+    borderRadius: 8,
+    padding: '8px 16px',
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: 600,
+    cursor: 'pointer',
+    zIndex: 1000,
   },
   lobbyCard: {
     position: 'relative',
-    background: 'linear-gradient(135deg, #1a0a0a 0%, #0a0a0a 100%)',
-    border: '2px solid #d4af37',
+    background: '#111',
+    border: '1px solid #222',
     borderRadius: 16,
     padding: '36px 28px',
     width: '90%',
     maxWidth: 360,
-    margin: '50px auto',
     display: 'flex',
     flexDirection: 'column',
     gap: 14,
     zIndex: 10,
-    boxShadow: '0 0 30px rgba(212, 175, 55, 0.3)',
   },
   title: {
     fontSize: 48,
     fontWeight: 900,
-    color: '#d4af37',
+    color: '#fff',
     textAlign: 'center',
     letterSpacing: 8,
-    textShadow: '0 0 20px rgba(212, 175, 55, 0.8)',
+    textShadow: '0 0 40px #FF6B3560',
   },
   subtitle: {
     fontSize: 12,
-    color: '#888',
+    color: '#555',
     textAlign: 'center',
     letterSpacing: 2,
     textTransform: 'uppercase',
@@ -782,7 +604,7 @@ const styles: Record<string, React.CSSProperties> = {
   },
   input: {
     background: '#1a1a1a',
-    border: '1px solid #333',
+    border: '1px solid #2a2a2a',
     borderRadius: 10,
     padding: '12px 16px',
     color: '#fff',
@@ -792,8 +614,8 @@ const styles: Record<string, React.CSSProperties> = {
     boxSizing: 'border-box' as const,
   },
   btnPrimary: {
-    background: 'linear-gradient(135deg, #d4af37 0%, #b8941f 100%)',
-    color: '#000',
+    background: '#FF6B35',
+    color: '#fff',
     border: 'none',
     borderRadius: 10,
     padding: '14px',
@@ -801,11 +623,10 @@ const styles: Record<string, React.CSSProperties> = {
     fontWeight: 700,
     cursor: 'pointer',
     letterSpacing: 1,
-    boxShadow: '0 4px 15px rgba(212, 175, 55, 0.4)',
   },
   btnSecondary: {
-    background: '#1a1a1a',
-    color: '#d4af37',
+    background: '#222',
+    color: '#FF6B35',
     border: '1px solid #333',
     borderRadius: 10,
     padding: '12px 20px',
@@ -820,7 +641,6 @@ const styles: Record<string, React.CSSProperties> = {
     gap: 10,
     color: '#333',
     fontSize: 12,
-    textAlign: 'center',
   },
   errorMsg: {
     background: '#3a1a1a',
@@ -830,152 +650,160 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: 13,
     textAlign: 'center',
   },
-  salaContainer: {
-    position: 'relative',
-    width: '100%',
-    maxWidth: 600,
-    margin: '0 auto',
-    padding: '20px',
-    zIndex: 1,
+  codigoGrande: {
+    fontSize: 52,
+    fontWeight: 900,
+    color: '#FF6B35',
+    textAlign: 'center',
+    letterSpacing: 16,
+    textShadow: '0 0 30px #FF6B3560',
+  },
+  dot: {
+    display: 'inline-block',
+    width: 8,
+    height: 8,
+    borderRadius: '50%',
+    background: '#4ECDC4',
+    boxShadow: '0 0 8px #4ECDC4',
   },
   header: {
     display: 'flex',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    gap: 20,
     marginBottom: 20,
-    padding: '12px 16px',
-    background: 'linear-gradient(135deg, #1a0a0a 0%, #0a0a0a 100%)',
-    border: '1px solid #d4af37',
-    borderRadius: 10,
+    alignItems: 'center',
   },
-  codigoDisplay: {
-    fontSize: 18,
+  fichasContainer: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 10,
+  },
+  fichasLabel: {
+    color: '#888',
+    fontSize: 14,
+  },
+  fichasValor: {
+    color: '#FF6B35',
+    fontSize: 24,
     fontWeight: 700,
-    color: '#d4af37',
-    letterSpacing: 4,
   },
-  fichasDisplay: {
+  estadoContainer: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 10,
+  },
+  estadoLabel: {
+    color: '#888',
+    fontSize: 14,
+  },
+  estadoValor: {
+    color: '#4ECDC4',
     fontSize: 16,
-    fontWeight: 700,
-    color: '#fff',
+    fontWeight: 600,
   },
   ruletaContainer: {
     position: 'relative',
-    width: '100%',
-    maxWidth: 400,
-    margin: '0 auto 30px',
-    aspectRatio: '1/1',
-  },
-  ruletaWrapper: {
-    position: 'relative',
-    width: '100%',
-    height: '100%',
+    width: 400,
+    height: 400,
+    margin: '20px 0',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   ruleta: {
     position: 'relative',
     width: '100%',
     height: '100%',
     borderRadius: '50%',
-    border: '8px solid #d4af37',
-    background: '#0a0a0a',
+    background: '#0d7d0d',
+    border: '10px solid #8b4513',
+    boxShadow: '0 0 30px rgba(0, 0, 0, 0.5)',
     overflow: 'hidden',
-    boxShadow: '0 0 30px rgba(212, 175, 55, 0.5)',
   },
-  numeroRuleta: {
-    position: 'absolute',
-    top: 0,
-    left: '50%',
-    width: '50%',
-    height: '50%',
-    transformOrigin: '0% 100%',
+  numeroRueda: {
+    width: 35,
+    height: 35,
+    borderRadius: '50%',
     display: 'flex',
-    alignItems: 'flex-start',
+    alignItems: 'center',
     justifyContent: 'center',
-    paddingTop: '8%',
-    fontSize: 14,
-    fontWeight: 700,
-    border: '1px solid #333',
-  },
-  ruletaFlecha: {
-    position: 'absolute',
-    top: '-10px',
-    left: '50%',
-    transform: 'translateX(-50%)',
-    fontSize: 32,
-    color: '#d4af37',
-    textShadow: '0 0 10px rgba(212, 175, 55, 0.8)',
-    zIndex: 10,
-  },
-  resultadoDisplay: {
-    marginTop: 20,
-    textAlign: 'center',
-  },
-  resultadoNumero: {
-    fontSize: 64,
-    fontWeight: 900,
-    color: '#d4af37',
-    textShadow: '0 0 20px rgba(212, 175, 55, 0.8)',
-  },
-  gananciaDisplay: {
-    fontSize: 24,
-    fontWeight: 700,
-    color: '#4ECDC4',
-    marginTop: 10,
-  },
-  mesaApuestas: {
-    background: 'linear-gradient(135deg, #1a0a0a 0%, #0a0a0a 100%)',
-    border: '2px solid #d4af37',
-    borderRadius: 16,
-    padding: 20,
-    marginBottom: 20,
-  },
-  mesaTitle: {
-    fontSize: 20,
-    fontWeight: 700,
-    color: '#d4af37',
-    marginBottom: 16,
-    textAlign: 'center',
-  },
-  tipoApuestaContainer: {
-    display: 'grid',
-    gridTemplateColumns: 'repeat(2, 1fr)',
-    gap: 8,
-    marginBottom: 16,
-  },
-  btnTipoApuesta: {
-    padding: '10px',
-    border: '1px solid #333',
-    borderRadius: 8,
-    color: '#fff',
     fontSize: 12,
     fontWeight: 700,
-    cursor: 'pointer',
+    border: '2px solid #fff',
+    textShadow: '0 0 2px rgba(0,0,0,0.8)',
+  },
+  puntero: {
+    position: 'absolute',
+    top: -10,
+    left: '50%',
+    transform: 'translateX(-50%)',
+    width: 0,
+    height: 0,
+    borderLeft: '15px solid transparent',
+    borderRight: '15px solid transparent',
+    borderTop: '30px solid #FF6B35',
+    zIndex: 10,
+  },
+  resultadoContainer: {
+    textAlign: 'center',
+    margin: '20px 0',
+  },
+  resultadoNumero: {
+    fontSize: 72,
+    fontWeight: 900,
+    color: '#FF6B35',
+    textShadow: '0 0 20px #FF6B35',
+  },
+  resultadoColor: {
+    fontSize: 24,
+    fontWeight: 700,
+    marginTop: 10,
+  },
+  apuestasContainer: {
+    width: '100%',
+    maxWidth: 600,
+    background: '#111',
+    border: '1px solid #222',
+    borderRadius: 16,
+    padding: '20px',
+    marginTop: 20,
+  },
+  apuestasTitle: {
+    fontSize: 20,
+    fontWeight: 700,
+    color: '#fff',
+    marginBottom: 20,
+    textAlign: 'center',
+  },
+  apuestaSection: {
+    marginBottom: 20,
+  },
+  apuestaLabel: {
+    color: '#888',
+    fontSize: 14,
+    marginBottom: 10,
   },
   numerosGrid: {
     display: 'grid',
     gridTemplateColumns: 'repeat(6, 1fr)',
-    gap: 4,
-    marginBottom: 16,
-    maxHeight: '200px',
-    overflowY: 'auto',
-  },
-  btnNumero: {
-    aspectRatio: '1/1',
-    border: '1px solid #333',
-    borderRadius: 4,
-    color: '#fff',
-    fontSize: 12,
-    fontWeight: 700,
-    cursor: 'pointer',
-    padding: 0,
-  },
-  opcionesGrid: {
-    display: 'grid',
-    gridTemplateColumns: 'repeat(auto-fit, minmax(100px, 1fr))',
     gap: 8,
-    marginBottom: 16,
+    marginBottom: 10,
   },
-  btnOpcion: {
+  numeroBtn: {
+    padding: '10px',
+    border: '1px solid #333',
+    borderRadius: 8,
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: 600,
+    cursor: 'pointer',
+    background: '#1a1a1a',
+  },
+  botonesApuesta: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(2, 1fr)',
+    gap: 10,
+  },
+  apuestaBtn: {
     padding: '12px',
     border: '1px solid #333',
     borderRadius: 8,
@@ -983,120 +811,85 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: 14,
     fontWeight: 700,
     cursor: 'pointer',
-  },
-  montoContainer: {
-    marginBottom: 16,
-  },
-  montoLabel: {
-    color: '#888',
-    fontSize: 14,
-    marginBottom: 8,
-  },
-  montoButtons: {
-    display: 'flex',
-    gap: 8,
-    marginBottom: 8,
-  },
-  btnMonto: {
-    flex: 1,
-    padding: '8px',
-    border: '1px solid #333',
-    borderRadius: 6,
-    color: '#fff',
-    fontSize: 14,
-    fontWeight: 700,
-    cursor: 'pointer',
-  },
-  inputMonto: {
-    width: '100%',
-    padding: '10px',
     background: '#1a1a1a',
-    border: '1px solid #333',
-    borderRadius: 6,
-    color: '#fff',
-    fontSize: 16,
-    outline: 'none',
   },
-  btnApostar: {
+  fichasInput: {
+    marginTop: 20,
+    paddingTop: 20,
+    borderTop: '1px solid #222',
+  },
+  fichasButtons: {
+    display: 'flex',
+    gap: 10,
+    marginBottom: 15,
+  },
+  fichaBtn: {
+    flex: 1,
+    padding: '10px',
+    border: '1px solid #333',
+    borderRadius: 8,
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: 600,
+    cursor: 'pointer',
+    background: '#1a1a1a',
+  },
+  btnConfirmar: {
     width: '100%',
     padding: '14px',
-    background: 'linear-gradient(135deg, #d4af37 0%, #b8941f 100%)',
+    background: '#FF6B35',
     border: 'none',
     borderRadius: 10,
-    color: '#000',
+    color: '#fff',
     fontSize: 16,
     fontWeight: 700,
     cursor: 'pointer',
-    marginBottom: 16,
   },
-  misApuestas: {
-    marginTop: 16,
-    padding: '12px',
-    background: '#1a1a1a',
-    borderRadius: 8,
-    border: '1px solid #333',
-  },
-  misApuestasTitle: {
-    color: '#d4af37',
-    fontSize: 14,
-    fontWeight: 700,
-    marginBottom: 8,
-  },
-  apuestaItem: {
-    color: '#fff',
-    fontSize: 12,
-    marginBottom: 4,
-  },
-  controlContainer: {
-    textAlign: 'center',
-    marginBottom: 20,
+  controlButtons: {
+    marginTop: 20,
   },
   btnGirar: {
     padding: '16px 32px',
-    background: 'linear-gradient(135deg, #d4af37 0%, #b8941f 100%)',
+    background: '#FF6B35',
     border: 'none',
-    borderRadius: 12,
-    color: '#000',
+    borderRadius: 10,
+    color: '#fff',
     fontSize: 18,
     fontWeight: 700,
     cursor: 'pointer',
-    boxShadow: '0 4px 15px rgba(212, 175, 55, 0.4)',
+    boxShadow: '0 0 20px rgba(255, 107, 53, 0.4)',
   },
-  girandoText: {
-    fontSize: 24,
-    fontWeight: 700,
-    color: '#d4af37',
-    textShadow: '0 0 10px rgba(212, 175, 55, 0.8)',
-  },
-  btnNuevaRonda: {
-    padding: '14px 28px',
-    background: '#1a1a1a',
-    border: '2px solid #d4af37',
+  btnResetear: {
+    padding: '12px 24px',
+    background: '#4ECDC4',
+    border: 'none',
     borderRadius: 10,
-    color: '#d4af37',
+    color: '#fff',
     fontSize: 16,
     fontWeight: 700,
     cursor: 'pointer',
   },
   jugadoresContainer: {
-    background: 'linear-gradient(135deg, #1a0a0a 0%, #0a0a0a 100%)',
-    border: '1px solid #333',
-    borderRadius: 12,
-    padding: '16px',
-  },
-  jugadoresTitle: {
-    color: '#d4af37',
-    fontSize: 16,
-    fontWeight: 700,
-    marginBottom: 12,
-  },
-  jugadorItem: {
     display: 'flex',
-    justifyContent: 'space-between',
+    gap: 20,
+    marginTop: 20,
+  },
+  jugador: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 10,
+    padding: '10px 20px',
+    background: '#111',
+    border: '1px solid #222',
+    borderRadius: 8,
+  },
+  jugadorNombre: {
     color: '#fff',
     fontSize: 14,
-    marginBottom: 8,
+    fontWeight: 600,
+  },
+  tuTurno: {
+    color: '#FF6B35',
+    fontSize: 12,
   },
 };
-
-export default RuletaView;

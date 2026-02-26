@@ -4,6 +4,7 @@
  * Supabase Realtime — funciona en redes distintas
  */
 import React, { useState, useEffect } from 'react';
+import { useAuth } from '../auth/AuthContext';
 
 // ─── Config Supabase ─────────────────────────────────────────────────────────
 const SUPA_URL = import.meta.env.VITE_SUPABASE_URL || 'https://qhnmxvexkizcsmivfuam.supabase.co';
@@ -125,7 +126,7 @@ async function patchSala(id: string, data: Partial<Sala>) {
   });
 }
 
-async function crearSala(id: string, nombre: string): Promise<void> {
+async function crearSala(id: string, nombre: string, usuarioId?: string): Promise<void> {
   const estadoInicial: EstadoSala = {
     jugadores: {
       [nombre]: {
@@ -148,6 +149,7 @@ async function crearSala(id: string, nombre: string): Promise<void> {
     headers: HEADERS,
     body: JSON.stringify({
       id,
+      usuario_id: usuarioId || null,
       host: nombre,
       estado_json: estadoInicial,
     }),
@@ -174,18 +176,38 @@ async function unirSala(id: string, nombre: string): Promise<boolean> {
 
 // ─── Componente principal ────────────────────────────────────────────────────
 export function BlackJackView() {
+  const { usuario } = useAuth();
   const [fase, setFase] = useState<'lobby' | 'sala'>('lobby');
-  const [nombre, setNombre] = useState('');
+  const [nombre, setNombre] = useState(usuario?.nombre || '');
   const [codigo, setCodigo] = useState('');
   const [codigoInput, setCodigoInput] = useState('');
   const [sala, setSala] = useState<Sala | null>(null);
   const [error, setError] = useState('');
   const [esHost, setEsHost] = useState(false);
 
+  // ── Verificar perfil ────────────────────────────────────────────────────────
+  useEffect(() => {
+    if (usuario && usuario.perfil !== 'adulto') {
+      alert('Este juego es solo para adultos');
+      window.location.href = '/';
+    }
+  }, [usuario]);
+
+  if (!usuario || usuario.perfil !== 'adulto') {
+    return (
+      <div style={{ padding: 40, textAlign: 'center', color: '#fff' }}>
+        <div>Este juego es solo para adultos</div>
+        <button onClick={() => window.location.href = '/'} style={{ marginTop: 20, padding: '12px 24px', background: '#FF6B35', border: 'none', borderRadius: 8, color: '#fff', cursor: 'pointer' }}>
+          Volver al menú
+        </button>
+      </div>
+    );
+  }
+
   const handleCrear = async () => {
     if (!nombre.trim()) { setError('Ingresá tu nombre'); return; }
     const code = genCode();
-    await crearSala(code, nombre.trim());
+    await crearSala(code, nombre.trim(), usuario?.id);
     setCodigo(code);
     setEsHost(true);
     setFase('sala');

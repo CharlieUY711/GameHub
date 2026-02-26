@@ -5,12 +5,10 @@
  * Modo vs CPU con layout vertical
  */
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { useAuth } from './auth/AuthContext';
-import { procesarFinalPartida } from './utils/coras';
 
 // ─── Config Supabase ─────────────────────────────────────────────────────────
-const SUPA_URL = 'https://qhnmxvexkizcsmivfuam.supabase.co';
-const SUPA_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFobm14dmV4a2l6Y3NtaXZmdWFtIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3MTIyMTI4MSwiZXhwIjoyMDg2Nzk3MjgxfQ.b2N86NyMG4F3CXcgTnzOjqx7AZPyDTa4QFFCtOSK42s';
+const SUPA_URL = import.meta.env.VITE_SUPABASE_URL || '';
+const SUPA_KEY = import.meta.env.VITE_SUPABASE_KEY || '';
 
 const HEADERS = {
   'Content-Type': 'application/json',
@@ -55,6 +53,10 @@ interface Sala {
   paddle2_x?: number;
 }
 
+interface PongViewProps {
+  onBack: () => void;
+}
+
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 function genCode() {
   return Math.random().toString(36).substring(2, 6).toUpperCase();
@@ -95,7 +97,7 @@ async function unirSala(id: string, nombre: string): Promise<boolean> {
 }
 
 // ─── Componente principal ────────────────────────────────────────────────────
-export function PongView() {
+export function PongView({ onBack }: PongViewProps) {
   const [fase, setFase] = useState<'lobby' | 'sala' | 'cpu-setup' | 'juego'>('lobby');
   const [nombre, setNombre] = useState('');
   const [codigo, setCodigo] = useState('');
@@ -161,10 +163,10 @@ export function PongView() {
   }, [fase, esperando, codigo]);
 
   // ── Render fases ─────────────────────────────────────────────────────────────
-  if (fase === 'lobby') return <Lobby nombre={nombre} setNombre={setNombre} codigoInput={codigoInput} setCodigoInput={setCodigoInput} error={error} setError={setError} onCrear={handleCrear} onUnirse={handleUnirse} onJugarCPU={handleJugarCPU} />;
-  if (fase === 'sala') return <SalaEspera codigo={codigo} nombre={nombre} />;
-  if (fase === 'cpu-setup') return <CPUSetup nombre={nombreCPU} setNombre={setNombreCPU} dificultad={dificultad} setDificultad={setDificultad} error={error} setError={setError} onIniciar={handleIniciarCPU} />;
-  if (fase === 'juego') return <Juego codigo={codigo} jugador={jugador} salaInicial={sala} modoCPU={modoCPU} dificultad={dificultad} />;
+  if (fase === 'lobby') return <Lobby nombre={nombre} setNombre={setNombre} codigoInput={codigoInput} setCodigoInput={setCodigoInput} error={error} setError={setError} onCrear={handleCrear} onUnirse={handleUnirse} onJugarCPU={handleJugarCPU} onBack={onBack} />;
+  if (fase === 'sala') return <SalaEspera codigo={codigo} nombre={nombre} onBack={onBack} />;
+  if (fase === 'cpu-setup') return <CPUSetup nombre={nombreCPU} setNombre={setNombreCPU} dificultad={dificultad} setDificultad={setDificultad} error={error} setError={setError} onIniciar={handleIniciarCPU} onBack={onBack} />;
+  if (fase === 'juego') return <Juego codigo={codigo} jugador={jugador} salaInicial={sala} modoCPU={modoCPU} dificultad={dificultad} onBack={onBack} />;
   return null;
 }
 
@@ -195,9 +197,10 @@ function lineaHorizontal(top: number): React.CSSProperties {
 }
 
 // ─── Lobby ───────────────────────────────────────────────────────────────────
-function Lobby({ nombre, setNombre, codigoInput, setCodigoInput, error, setError, onCrear, onUnirse, onJugarCPU }: any) {
+function Lobby({ nombre, setNombre, codigoInput, setCodigoInput, error, setError, onCrear, onUnirse, onJugarCPU, onBack }: any) {
   return (
     <div style={styles.fullPage}>
+      <button style={styles.backButton} onClick={onBack}>← Volver</button>
       <div style={styles.court}>
         <div style={styles.centerLine} />
         <div style={netDot(20)} />
@@ -245,9 +248,10 @@ function Lobby({ nombre, setNombre, codigoInput, setCodigoInput, error, setError
 }
 
 // ─── Sala de espera ───────────────────────────────────────────────────────────
-function SalaEspera({ codigo, nombre }: { codigo: string; nombre: string }) {
+function SalaEspera({ codigo, nombre, onBack }: { codigo: string; nombre: string; onBack: () => void }) {
   return (
     <div style={styles.fullPage}>
+      <button style={styles.backButton} onClick={onBack}>← Volver</button>
       <div style={styles.court}><div style={styles.centerLine} /></div>
       <div style={styles.lobbyCard}>
         <div style={styles.title}>PONG</div>
@@ -264,7 +268,7 @@ function SalaEspera({ codigo, nombre }: { codigo: string; nombre: string }) {
 }
 
 // ─── CPU Setup ───────────────────────────────────────────────────────────────
-function CPUSetup({ nombre, setNombre, dificultad, setDificultad, error, setError, onIniciar }: {
+function CPUSetup({ nombre, setNombre, dificultad, setDificultad, error, setError, onIniciar, onBack }: {
   nombre: string;
   setNombre: (n: string) => void;
   dificultad: DificultadCPU;
@@ -272,9 +276,11 @@ function CPUSetup({ nombre, setNombre, dificultad, setDificultad, error, setErro
   error: string;
   setError: (e: string) => void;
   onIniciar: () => void;
+  onBack: () => void;
 }) {
   return (
     <div style={styles.fullPage}>
+      <button style={styles.backButton} onClick={onBack}>← Volver</button>
       <div style={styles.court}><div style={styles.centerLine} /></div>
       <div style={styles.lobbyCard}>
         <div style={styles.title}>VS CPU</div>
@@ -335,16 +341,14 @@ function CPUSetup({ nombre, setNombre, dificultad, setDificultad, error, setErro
 }
 
 // ─── Juego ───────────────────────────────────────────────────────────────────
-function Juego({ codigo, jugador, salaInicial, modoCPU, dificultad }: {
+function Juego({ codigo, jugador, salaInicial, modoCPU, dificultad, onBack }: {
   codigo: string;
   jugador: 1 | 2;
   salaInicial: Sala | null;
   modoCPU: boolean;
   dificultad: DificultadCPU;
+  onBack: () => void;
 }) {
-  const { usuario } = useAuth();
-  const [partidaProcesada, setPartidaProcesada] = useState(false);
-  
   // Configuración de dificultad
   const dificultadConfig = {
     facil: { speedMultiplier: 0.7, cpuDelay: 0.25, cpuAccuracy: 0.8 },
@@ -494,17 +498,8 @@ function Juego({ codigo, jugador, salaInicial, modoCPU, dificultad }: {
       }
       if (score1 >= WIN_SCORE || score2 >= WIN_SCORE) {
         update.estado = 'terminado';
-        const ganadorNombre = score1 >= WIN_SCORE ? (s.jugador1 || 'J1') : (s.jugador2 || 'J2');
-        setGanador(ganadorNombre);
+        setGanador(score1 >= WIN_SCORE ? (s.jugador1 || 'J1') : (s.jugador2 || 'J2'));
         setGameOver(true);
-        
-        // Procesar Coras y estadísticas
-        if (usuario && !partidaProcesada) {
-          const esGanador = (jugador === 1 && ganadorNombre === s.jugador1) || 
-                           (jugador === 2 && ganadorNombre === s.jugador2);
-          procesarFinalPartida(usuario.id, 'pong', esGanador).catch(console.error);
-          setPartidaProcesada(true);
-        }
       }
 
       salaRef.current = { ...s, ...update };
@@ -579,6 +574,7 @@ function Juego({ codigo, jugador, salaInicial, modoCPU, dificultad }: {
 
   return (
     <div style={modoCPU ? styles.fullPageVertical : styles.fullPage}>
+      <button style={styles.backButton} onClick={onBack}>← Volver</button>
       {/* Score */}
       <div style={modoCPU ? styles.scoreBarVertical : styles.scoreBar}>
         {modoCPU ? (
@@ -758,8 +754,8 @@ function Juego({ codigo, jugador, salaInicial, modoCPU, dificultad }: {
             <div style={{ fontSize: 18, color: '#888', marginBottom: 24 }}>
               {score1} — {score2}
             </div>
-            <button style={styles.btnPrimary} onClick={() => window.location.reload()}>
-              Jugar de nuevo
+            <button style={styles.btnPrimary} onClick={onBack}>
+              Volver al menú
             </button>
           </div>
         </div>
@@ -797,6 +793,21 @@ const styles: Record<string, React.CSSProperties> = {
     fontFamily: "'Courier New', monospace",
     overflow: 'hidden',
     userSelect: 'none',
+  },
+  backButton: {
+    position: 'absolute',
+    top: 20,
+    left: 20,
+    background: '#111',
+    border: '1px solid #333',
+    borderRadius: 8,
+    padding: '8px 16px',
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: 600,
+    cursor: 'pointer',
+    zIndex: 1000,
+    fontFamily: "'Courier New', monospace",
   },
   court: {
     position: 'absolute',
@@ -1066,5 +1077,3 @@ const styles: Record<string, React.CSSProperties> = {
     fontStyle: 'italic',
   },
 };
-
-export default PongView;
