@@ -100,9 +100,67 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         .eq('id', userId)
         .single();
 
-      if (error) throw error;
-      if (data) {
-        // Asegurar valores por defecto si no existen
+      // Si el usuario no existe, crearlo automáticamente
+      if (error) {
+        // Verificar si es un error de "no encontrado"
+        const esUsuarioNoEncontrado = 
+          error.code === 'PGRST116' || 
+          error.message?.includes('No rows') || 
+          error.message?.includes('not found') ||
+          error.message?.includes('0 rows');
+        
+        if (esUsuarioNoEncontrado) {
+          // Usuario no encontrado, obtener datos del auth user
+          const { data: authUser } = await supabase.auth.getUser();
+          if (authUser?.user) {
+            const nombre = authUser.user.user_metadata?.full_name || 
+                          authUser.user.user_metadata?.name || 
+                          authUser.user.email?.split('@')[0] || 
+                          'Usuario';
+            
+            const { error: insertError } = await supabase
+              .from('gh_usuarios')
+              .insert({
+                id: userId,
+                nombre: nombre,
+                perfil: 'adulto',
+                avatar: '🎮',
+                coras: 0,
+                nectar: 0,
+                casino_habilitado: false,
+              });
+            
+            if (insertError) {
+              console.error('Error creando usuario:', insertError);
+              throw insertError;
+            }
+            
+            // Recargar el usuario recién creado
+            const { data: nuevoUsuario, error: errorNuevo } = await supabase
+              .from('gh_usuarios')
+              .select('*')
+              .eq('id', userId)
+              .single();
+            
+            if (errorNuevo) throw errorNuevo;
+            if (nuevoUsuario) {
+              const usuarioData: Usuario = {
+                ...nuevoUsuario,
+                coras: nuevoUsuario.coras ?? 0,
+                nectar: nuevoUsuario.nectar ?? 0,
+                casino_habilitado: nuevoUsuario.casino_habilitado ?? false,
+              };
+              setUsuario(usuarioData);
+              setLogueado(true);
+              return;
+            }
+          }
+        } else {
+          // Otro tipo de error
+          throw error;
+        }
+      } else if (data) {
+        // Usuario existe, cargar datos
         const usuarioData: Usuario = {
           ...data,
           coras: data.coras ?? 0,
@@ -114,7 +172,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     } catch (err: any) {
       console.error('Error cargando usuario:', err);
-      setError(err.message);
+      setError(err.message || 'Error al cargar usuario');
     }
   };
 

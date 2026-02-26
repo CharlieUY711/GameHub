@@ -46,7 +46,7 @@ export function LoginView() {
       <div style={styles.logoContainer}>
         <div style={styles.logo}>🎮 GameHub</div>
         <div style={styles.nectarContainer}>
-          <img src="/nectar.png" alt="Nectar" style={styles.nectarImage} />
+          <img src="/MonedaRelieve.png" alt="Nectar" style={styles.nectarImage} />
         </div>
       </div>
       <div style={styles.subtitle}>Iniciar sesión</div>
