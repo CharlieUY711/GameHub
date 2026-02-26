@@ -63,7 +63,8 @@ interface EstadoSala {
 interface Sala {
   id: string;
   codigo: string;
-  estado: EstadoSala;
+  estado_json: EstadoSala;
+  host?: string;
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -236,19 +237,19 @@ function SalaEspera({ sala, jugadorId, onIniciar, onSalir }: {
   onIniciar: () => void;
   onSalir: () => void;
 }) {
-  const jugador = sala.estado.jugadores.find(j => j.id === jugadorId);
+  const jugador = sala.estado_json.jugadores.find(j => j.id === jugadorId);
   const esHost = jugador?.esHost || false;
-  const puedeIniciar = esHost && sala.estado.jugadores.length >= MIN_JUGADORES && sala.estado.jugadores.length <= MAX_JUGADORES;
+  const puedeIniciar = esHost && sala.estado_json.jugadores.length >= MIN_JUGADORES && sala.estado_json.jugadores.length <= MAX_JUGADORES;
 
   return (
     <div style={styles.container}>
       <div style={styles.title}>Sala: {sala.codigo}</div>
       <div style={styles.subtitle}>
-        {sala.estado.jugadores.length} / {MAX_JUGADORES} jugadores
+        {sala.estado_json.jugadores.length} / {MAX_JUGADORES} jugadores
       </div>
       
       <div style={styles.listaJugadores}>
-        {sala.estado.jugadores.map((j, idx) => (
+        {sala.estado_json.jugadores.map((j, idx) => (
           <div key={j.id} style={styles.jugadorItem}>
             <span>{j.esHost ? '👑' : '👤'} {j.nombre}</span>
             {j.id === jugadorId && <span style={styles.tu}> (Tú)</span>}
@@ -305,28 +306,28 @@ function Juego({ sala, jugadorId, onAnotar, onTachar, onTirar, onGuardarDado, on
   onGuardarDado: (idx: number) => void;
   onDesguardarDado: (idx: number) => void;
 }) {
-  const jugador = sala.estado.jugadores.find(j => j.id === jugadorId);
-  const esMiTurno = sala.estado.jugadorActivo === jugadorId;
-  const todosDados = [...sala.estado.dadosGuardados, ...sala.estado.dadosActuales];
+  const jugador = sala.estado_json.jugadores.find(j => j.id === jugadorId);
+  const esMiTurno = sala.estado_json.jugadorActivo === jugadorId;
+  const todosDados = [...sala.estado_json.dadosGuardados, ...sala.estado_json.dadosActuales];
   const combinacionesDisponibles = obtenerCombinacionesDisponibles(todosDados);
   const [animando, setAnimando] = useState(false);
 
   const handleTirar = () => {
-    if (!esMiTurno || sala.estado.tiradasRestantes === 0) return;
+    if (!esMiTurno || sala.estado_json.tiradasRestantes === 0) return;
     setAnimando(true);
     setTimeout(() => setAnimando(false), 800);
     onTirar();
   };
 
-  const puedeAnotar = esMiTurno && sala.estado.tiradasRestantes === 0;
-  const puedeTirar = esMiTurno && sala.estado.tiradasRestantes > 0;
+  const puedeAnotar = esMiTurno && sala.estado_json.tiradasRestantes === 0;
+  const puedeTirar = esMiTurno && sala.estado_json.tiradasRestantes > 0;
 
   return (
     <div style={styles.container}>
       <div style={styles.headerJuego}>
         <div style={styles.codigoSala}>Sala: {sala.codigo}</div>
         <div style={styles.turnoInfo}>
-          Turno: {sala.estado.jugadores[sala.estado.turnoActual]?.nombre || '...'}
+          Turno: {sala.estado_json.jugadores[sala.estado_json.turnoActual]?.nombre || '...'}
         </div>
         <div style={styles.tiradasInfo}>
           {Array.from({ length: TIROS_MAXIMOS }).map((_, i) => (
@@ -334,7 +335,7 @@ function Juego({ sala, jugadorId, onAnotar, onTachar, onTirar, onGuardarDado, on
               key={i}
               style={{
                 ...styles.tiradaDot,
-                ...(i < TIROS_MAXIMOS - sala.estado.tiradasRestantes ? styles.tiradaDotUsada : {}),
+                ...(i < TIROS_MAXIMOS - sala.estado_json.tiradasRestantes ? styles.tiradaDotUsada : {}),
               }}
             >
               ●
@@ -343,21 +344,21 @@ function Juego({ sala, jugadorId, onAnotar, onTachar, onTirar, onGuardarDado, on
         </div>
       </div>
 
-      {sala.estado.ganador && (
+      {sala.estado_json.ganador && (
         <div style={styles.ganador}>
-          🎉 {sala.estado.jugadores.find(j => j.id === sala.estado.ganador)?.nombre} ganó!
+          🎉 {sala.estado_json.jugadores.find(j => j.id === sala.estado_json.ganador)?.nombre} ganó!
         </div>
       )}
 
-      {sala.estado.generalaDoble && (
+      {sala.estado_json.generalaDoble && (
         <div style={styles.ganador}>
-          🏆 Generala Doble! {sala.estado.jugadores.find(j => j.id === sala.estado.generalaDoble)?.nombre} ganó!
+          🏆 Generala Doble! {sala.estado_json.jugadores.find(j => j.id === sala.estado_json.generalaDoble)?.nombre} ganó!
         </div>
       )}
 
       {/* Dados */}
       <div style={styles.dadosContainer}>
-        {sala.estado.dadosGuardados.map((valor, idx) => (
+        {sala.estado_json.dadosGuardados.map((valor, idx) => (
           <Dado
             key={`guardado-${idx}`}
             valor={valor}
@@ -366,7 +367,7 @@ function Juego({ sala, jugadorId, onAnotar, onTachar, onTirar, onGuardarDado, on
             animando={false}
           />
         ))}
-        {sala.estado.dadosActuales.map((valor, idx) => (
+        {sala.estado_json.dadosActuales.map((valor, idx) => (
           <Dado
             key={`actual-${idx}`}
             valor={valor}
@@ -381,10 +382,10 @@ function Juego({ sala, jugadorId, onAnotar, onTachar, onTirar, onGuardarDado, on
       {puedeTirar && (
         <button
           onClick={handleTirar}
-          disabled={sala.estado.dadosActuales.length === 0}
+          disabled={sala.estado_json.dadosActuales.length === 0}
           style={{ ...styles.button, ...styles.buttonPrimary, ...styles.buttonTirar }}
         >
-          Tirar ({sala.estado.tiradasRestantes} restantes)
+          Tirar ({sala.estado_json.tiradasRestantes} restantes)
         </button>
       )}
 
@@ -394,7 +395,7 @@ function Juego({ sala, jugadorId, onAnotar, onTachar, onTirar, onGuardarDado, on
         <div style={styles.planillaGrid}>
           <div style={styles.planillaHeaderRow}>
             <div style={styles.planillaColNombre}>Combinación</div>
-            {sala.estado.jugadores.map(j => (
+            {sala.estado_json.jugadores.map(j => (
               <div key={j.id} style={styles.planillaCol}>
                 {j.nombre}
                 {j.id === jugadorId && ' (Tú)'}
@@ -410,7 +411,7 @@ function Juego({ sala, jugadorId, onAnotar, onTachar, onTirar, onGuardarDado, on
                   <span style={styles.disponible}> ✓</span>
                 )}
               </div>
-              {sala.estado.jugadores.map(j => {
+              {sala.estado_json.jugadores.map(j => {
                 const valor = j.planilla[combinacion];
                 const esMiPlanilla = j.id === jugadorId;
                 const disponible = combinacionesDisponibles.includes(combinacion);
@@ -440,8 +441,8 @@ function Juego({ sala, jugadorId, onAnotar, onTachar, onTirar, onGuardarDado, on
           {/* Totales */}
           <div style={styles.planillaRowTotal}>
             <div style={styles.planillaColNombre}>Total</div>
-            {sala.estado.jugadores.map(j => {
-              const total = calcularPuntos(j.planilla, sala.estado.primeraTirada);
+            {sala.estado_json.jugadores.map(j => {
+              const total = calcularPuntos(j.planilla, sala.estado_json.primeraTirada);
               return (
                 <div key={j.id} style={styles.planillaColTotal}>
                   {total}
@@ -516,7 +517,8 @@ export default function GeneralaView() {
       const nuevaSala: Sala = {
         id: `sala_${Date.now()}`,
         codigo: codigoSala,
-        estado: estadoInicial,
+        estado_json: estadoInicial,
+        host: nombre.trim(),
       };
 
       const response = await fetch(`${SUPA_URL}/rest/v1/generala_salas`, {
@@ -524,7 +526,8 @@ export default function GeneralaView() {
         headers: HEADERS,
         body: JSON.stringify({
           codigo: codigoSala,
-          estado: estadoInicial,
+          estado_json: estadoInicial,
+          host: nombre.trim(),
         }),
       });
 
@@ -566,7 +569,7 @@ export default function GeneralaView() {
       }
 
       const salaExistente = data[0];
-      const estadoActual: EstadoSala = salaExistente.estado;
+      const estadoActual: EstadoSala = salaExistente.estado_json || salaExistente.estado;
 
       if (estadoActual.jugadores.length >= MAX_JUGADORES) {
         setError('Sala llena');
@@ -597,13 +600,14 @@ export default function GeneralaView() {
       const salaActualizada: Sala = {
         id: salaExistente.id,
         codigo: salaExistente.codigo,
-        estado: estadoActual,
+        estado_json: estadoActual,
+        host: salaExistente.host,
       };
 
       await fetch(`${SUPA_URL}/rest/v1/generala_salas?id=eq.${salaExistente.id}`, {
         method: 'PATCH',
         headers: HEADERS,
-        body: JSON.stringify({ estado: estadoActual }),
+        body: JSON.stringify({ estado_json: estadoActual }),
       });
 
       setSala(salaActualizada);
@@ -629,7 +633,8 @@ export default function GeneralaView() {
               setSala({
                 id: data[0].id,
                 codigo: data[0].codigo,
-                estado: data[0].estado,
+                estado_json: data[0].estado_json || data[0].estado,
+                host: data[0].host,
               });
             }
           }
@@ -654,7 +659,8 @@ export default function GeneralaView() {
             setSala({
               id: payload.new.id,
               codigo: payload.new.codigo,
-              estado: payload.new.estado,
+              estado_json: payload.new.estado_json || payload.new.estado,
+              host: payload.new.host,
             });
           }
         })
@@ -669,7 +675,7 @@ export default function GeneralaView() {
   const iniciarPartida = async () => {
     if (!sala) return;
 
-    const estadoActualizado = { ...sala.estado };
+    const estadoActualizado = { ...sala.estado_json };
     estadoActualizado.estado = 'jugando';
     estadoActualizado.turnoActual = 0;
     estadoActualizado.jugadorActivo = estadoActualizado.jugadores[0].id;
@@ -682,10 +688,10 @@ export default function GeneralaView() {
   };
 
   const tirarDados = async () => {
-    if (!sala || sala.estado.jugadorActivo !== jugadorId) return;
-    if (sala.estado.tiradasRestantes === 0) return;
+    if (!sala || sala.estado_json.jugadorActivo !== jugadorId) return;
+    if (sala.estado_json.tiradasRestantes === 0) return;
 
-    const estadoActualizado = { ...sala.estado };
+    const estadoActualizado = { ...sala.estado_json };
     const dadosATirar = DADOS_TOTALES - estadoActualizado.dadosGuardados.length;
     estadoActualizado.dadosActuales = Array.from({ length: dadosATirar }, () => tirarDado());
     estadoActualizado.tiradasRestantes -= 1;
@@ -695,10 +701,10 @@ export default function GeneralaView() {
   };
 
   const guardarDado = async (idx: number) => {
-    if (!sala || sala.estado.jugadorActivo !== jugadorId) return;
-    if (sala.estado.tiradasRestantes === 0) return;
+    if (!sala || sala.estado_json.jugadorActivo !== jugadorId) return;
+    if (sala.estado_json.tiradasRestantes === 0) return;
 
-    const estadoActualizado = { ...sala.estado };
+    const estadoActualizado = { ...sala.estado_json };
     const dado = estadoActualizado.dadosActuales[idx];
     estadoActualizado.dadosGuardados.push(dado);
     estadoActualizado.dadosActuales = estadoActualizado.dadosActuales.filter((_, i) => i !== idx);
@@ -707,10 +713,10 @@ export default function GeneralaView() {
   };
 
   const desguardarDado = async (idx: number) => {
-    if (!sala || sala.estado.jugadorActivo !== jugadorId) return;
-    if (sala.estado.tiradasRestantes === 0) return;
+    if (!sala || sala.estado_json.jugadorActivo !== jugadorId) return;
+    if (sala.estado_json.tiradasRestantes === 0) return;
 
-    const estadoActualizado = { ...sala.estado };
+    const estadoActualizado = { ...sala.estado_json };
     const dado = estadoActualizado.dadosGuardados[idx];
     estadoActualizado.dadosActuales.push(dado);
     estadoActualizado.dadosGuardados = estadoActualizado.dadosGuardados.filter((_, i) => i !== idx);
@@ -719,18 +725,18 @@ export default function GeneralaView() {
   };
 
   const anotarCombinacion = async (combinacion: Combinacion) => {
-    if (!sala || sala.estado.jugadorActivo !== jugadorId) return;
-    if (sala.estado.tiradasRestantes > 0) return;
+    if (!sala || sala.estado_json.jugadorActivo !== jugadorId) return;
+    if (sala.estado_json.tiradasRestantes > 0) return;
 
-    const jugador = sala.estado.jugadores.find(j => j.id === jugadorId);
+    const jugador = sala.estado_json.jugadores.find(j => j.id === jugadorId);
     if (!jugador) return;
     if (jugador.planilla[combinacion] !== null) return;
 
-    const todosDados = [...sala.estado.dadosGuardados, ...sala.estado.dadosActuales];
+    const todosDados = [...sala.estado_json.dadosGuardados, ...sala.estado_json.dadosActuales];
     const puntos = calcularCombinacion(todosDados, combinacion);
     if (puntos === null) return;
 
-    const estadoActualizado = { ...sala.estado };
+    const estadoActualizado = { ...sala.estado_json };
     const jugadorIdx = estadoActualizado.jugadores.findIndex(j => j.id === jugadorId);
     estadoActualizado.jugadores[jugadorIdx].planilla[combinacion] = puntos;
 
@@ -781,14 +787,14 @@ export default function GeneralaView() {
   };
 
   const tacharCombinacion = async (combinacion: Combinacion) => {
-    if (!sala || sala.estado.jugadorActivo !== jugadorId) return;
-    if (sala.estado.tiradasRestantes > 0) return;
+    if (!sala || sala.estado_json.jugadorActivo !== jugadorId) return;
+    if (sala.estado_json.tiradasRestantes > 0) return;
 
-    const jugador = sala.estado.jugadores.find(j => j.id === jugadorId);
+    const jugador = sala.estado_json.jugadores.find(j => j.id === jugadorId);
     if (!jugador) return;
     if (jugador.planilla[combinacion] !== null) return;
 
-    const estadoActualizado = { ...sala.estado };
+    const estadoActualizado = { ...sala.estado_json };
     const jugadorIdx = estadoActualizado.jugadores.findIndex(j => j.id === jugadorId);
     estadoActualizado.jugadores[jugadorIdx].planilla[combinacion] = 0;
 
@@ -822,8 +828,10 @@ export default function GeneralaView() {
       await fetch(`${SUPA_URL}/rest/v1/generala_salas?id=eq.${sala.id}`, {
         method: 'PATCH',
         headers: HEADERS,
-        body: JSON.stringify({ estado }),
+        body: JSON.stringify({ estado_json: estado }),
       });
+      // Actualizar estado local
+      setSala({ ...sala, estado_json: estado });
     } catch (err) {
       console.error('Error actualizando estado:', err);
     }
@@ -863,7 +871,7 @@ export default function GeneralaView() {
     );
   }
 
-  if (sala.estado.estado === 'esperando') {
+  if (sala.estado_json.estado === 'esperando') {
     return (
       <SalaEspera
         sala={sala}
