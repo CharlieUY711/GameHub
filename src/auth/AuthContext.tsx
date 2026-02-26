@@ -3,7 +3,7 @@
  * Maneja sesión, perfiles, Coras, Nectar y funciones de login/logout
  */
 import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
-import { createClient, SupabaseClient, User } from '@supabase/supabase-js';
+import { createClient, SupabaseClient, User, Session } from '@supabase/supabase-js';
 
 const SUPA_URL = import.meta.env.VITE_SUPABASE_URL || '';
 const SUPA_KEY = import.meta.env.VITE_SUPABASE_KEY || '';
@@ -183,7 +183,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     // ─── Escuchar cambios de autenticación ───────────────────────────────────
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
+      async (event: string, session: Session | null) => {
         if (session?.user) {
           setUser(session.user);
           await cargarUsuario(session.user.id);

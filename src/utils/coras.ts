@@ -113,7 +113,7 @@ export async function verificarRecompensasAutomaticas(
         const ahora = new Date();
         const hace24Horas = new Date(ahora.getTime() - 24 * 60 * 60 * 1000);
         const victoriasRecientes = ultimasPartidas.filter(
-          (m) => new Date(m.created_at) > hace24Horas
+          (m: MovimientoCoras) => new Date(m.created_at) > hace24Horas
         );
 
         if (victoriasRecientes.length >= 2) {

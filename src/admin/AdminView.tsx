@@ -79,8 +79,8 @@ export function AdminView({ onClose }: { onClose: () => void }) {
         .select('coras, nectar');
 
       if (usuariosData) {
-        const totalNectar = usuariosData.reduce((sum, u) => sum + (u.nectar ?? 0), 0);
-        const totalCoras = usuariosData.reduce((sum, u) => sum + (u.coras ?? 0), 0);
+        const totalNectar = usuariosData.reduce((sum: number, u: { nectar?: number }) => sum + (u.nectar ?? 0), 0);
+        const totalCoras = usuariosData.reduce((sum: number, u: { coras?: number }) => sum + (u.coras ?? 0), 0);
         setResumen({
           totalUsuarios: usuariosData.length,
           totalNectar,
