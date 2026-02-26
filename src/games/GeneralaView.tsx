@@ -457,7 +457,7 @@ function Juego({ sala, jugadorId, onAnotar, onTachar, onTirar, onGuardarDado, on
 }
 
 // ─── Componente Principal ────────────────────────────────────────────────────
-export default function GeneralaView() {
+export default function GeneralaView({ onBack }: { onBack?: () => void }) {
   const [nombre, setNombre] = useState('');
   const [codigo, setCodigo] = useState('');
   const [error, setError] = useState('');

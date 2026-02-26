@@ -251,7 +251,7 @@ async function unirSala(id: string, nombre: string): Promise<boolean> {
 }
 
 // ─── Componente principal ────────────────────────────────────────────────────
-export function PokerView() {
+export function PokerView({ onBack }: { onBack?: () => void }) {
   const { usuario } = useAuth();
   const [fase, setFase] = useState<'lobby' | 'sala'>('lobby');
   const [nombre, setNombre] = useState(usuario?.nombre || '');

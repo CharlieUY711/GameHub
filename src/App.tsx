@@ -1,17 +1,24 @@
 import React, { useState } from 'react';
 import { useAuth } from './auth/AuthContext';
 import { LoginView } from './auth/LoginView';
+import { SalaDeJuegos } from './games/SalaDeJuegos';
 import { PongView } from './games/PongView';
 import { RuletaView } from './games/RuletaView';
 import { DominoView } from './games/DominoView';
 import { EscobaView } from './games/EscobaView';
 import GeneralaView from './games/GeneralaView';
+import { PokerView } from './games/PokerView';
+import { BlackJackView } from './games/BlackJackView';
+import { RummyView } from './games/RummyView';
+import TrivialView from './games/TrivialView';
+import { BatallaNavalView } from './games/BatallaNavalView';
 
-type Game = 'menu' | 'pong' | 'ruleta' | 'domino' | 'escoba' | 'generala';
+type Game = 'sala' | 'pong' | 'ruleta' | 'domino' | 'escoba' | 'generala' | 'poker' | 'blackjack' | 'rummy' | 'trivial' | 'batalla' | 'menu-grande';
 
 function App() {
   const { logueado, cargando } = useAuth();
-  const [currentGame, setCurrentGame] = useState<Game>('menu');
+  const [currentGame, setCurrentGame] = useState<Game>('sala');
+  const [juegoSeleccionado, setJuegoSeleccionado] = useState<string | null>(null);
 
   // Mostrar loading mientras se verifica la sesión
   if (cargando) {
@@ -27,30 +34,228 @@ function App() {
     return <LoginView />;
   }
 
+  // Manejar selección de juego desde la sala
+  const handleSeleccionarJuego = (juego: string) => {
+    if (juego === 'menu-grande') {
+      setJuegoSeleccionado('menu-grande');
+      setCurrentGame('menu-grande');
+    } else {
+      setCurrentGame(juego as Game);
+    }
+  };
+
   // Renderizar juegos
+  if (currentGame === 'sala') {
+    return <SalaDeJuegos onSeleccionarJuego={handleSeleccionarJuego} />;
+  }
+
   if (currentGame === 'pong') {
-    return <PongView onBack={() => setCurrentGame('menu')} />;
+    return <PongView onBack={() => setCurrentGame('sala')} />;
   }
 
   if (currentGame === 'ruleta') {
-    return <RuletaView onBack={() => setCurrentGame('menu')} />;
+    return <RuletaView onBack={() => setCurrentGame('sala')} />;
   }
 
   if (currentGame === 'domino') {
-    return <DominoView />;
+    return <DominoView onBack={() => setCurrentGame('sala')} />;
   }
 
   if (currentGame === 'escoba') {
-    return <EscobaView />;
+    return <EscobaView onBack={() => setCurrentGame('sala')} />;
   }
 
   if (currentGame === 'generala') {
-    return <GeneralaView />;
+    return <GeneralaView onBack={() => setCurrentGame('sala')} />;
   }
 
-  // Menú principal
+  if (currentGame === 'poker') {
+    return <PokerView onBack={() => setCurrentGame('sala')} />;
+  }
+
+  if (currentGame === 'blackjack') {
+    return <BlackJackView onBack={() => setCurrentGame('sala')} />;
+  }
+
+  if (currentGame === 'rummy') {
+    return <RummyView onBack={() => setCurrentGame('sala')} />;
+  }
+
+  if (currentGame === 'trivial') {
+    return <TrivialView onBack={() => setCurrentGame('sala')} />;
+  }
+
+  if (currentGame === 'batalla') {
+    return <BatallaNavalView onBack={() => setCurrentGame('sala')} />;
+  }
+
+  // Menú de mesa grande
+  if (currentGame === 'menu-grande') {
+    return (
+      <MenuMesaGrande
+        onSeleccionarJuego={(juego) => setCurrentGame(juego as Game)}
+        onBack={() => setCurrentGame('sala')}
+      />
+    );
+  }
+
+  // Fallback - no debería llegar aquí
+  return <SalaDeJuegos onSeleccionarJuego={handleSeleccionarJuego} />;
+}
+
+// ─── Menú Mesa Grande ────────────────────────────────────────────────────────
+function MenuMesaGrande({ onSeleccionarJuego, onBack }: { onSeleccionarJuego: (juego: string) => void; onBack: () => void }) {
+  const juegos = [
+    { id: 'trivial', nombre: 'TRIVIAL', icon: '❓', desc: 'Preguntas y respuestas' },
+    { id: 'generala', nombre: 'GENERALA', icon: '🎲', desc: 'Uruguaya 2-6 jugadores' },
+    { id: 'domino', nombre: 'DOMINÓ', icon: '🎴', desc: 'Clásico en parejas' },
+    { id: 'batalla', nombre: 'BATALLA NAVAL', icon: '⚓', desc: '1 vs 1 estratégico' },
+  ];
+
   return (
-    <div style={styles.container}>
+    <div style={menuStyles.container}>
+      <button style={menuStyles.backButton} onClick={onBack}>← Volver a la Sala</button>
+      <div style={menuStyles.header}>
+        <h1 style={menuStyles.title}>🎲 MESA GRANDE</h1>
+        <div style={menuStyles.subtitle}>Selecciona un juego</div>
+      </div>
+      <div style={menuStyles.gamesGrid}>
+        {juegos.map((juego) => (
+          <div key={juego.id} style={menuStyles.gameCard} onClick={() => onSeleccionarJuego(juego.id)}>
+            <div style={menuStyles.gameIcon}>{juego.icon}</div>
+            <div style={menuStyles.gameName}>{juego.nombre}</div>
+            <div style={menuStyles.gameDescription}>{juego.desc}</div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+const menuStyles: Record<string, React.CSSProperties> = {
+  container: {
+    position: 'relative',
+    width: '100%',
+    minHeight: '100vh',
+    background: 'linear-gradient(180deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%)',
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    padding: '40px 20px',
+  },
+  backButton: {
+    position: 'absolute',
+    top: 20,
+    left: 20,
+    background: '#111',
+    border: '1px solid #333',
+    borderRadius: 8,
+    padding: '12px 24px',
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: 600,
+    cursor: 'pointer',
+    zIndex: 1000,
+  },
+  header: {
+    textAlign: 'center',
+    marginBottom: 60,
+    marginTop: 40,
+  },
+  title: {
+    fontSize: 'clamp(48px, 8vw, 96px)',
+    fontWeight: 900,
+    color: '#FF6B35',
+    textShadow: '0 0 20px #FF6B35, 0 0 40px #FF6B35',
+    letterSpacing: '0.2em',
+    marginBottom: 10,
+    fontFamily: "'Courier New', monospace",
+  },
+  subtitle: {
+    fontSize: 'clamp(14px, 2vw, 20px)',
+    color: '#4ECDC4',
+    textShadow: '0 0 10px #4ECDC4',
+    letterSpacing: '0.1em',
+  },
+  gamesGrid: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 300px))',
+    gap: 30,
+    maxWidth: '1200px',
+    width: '100%',
+  },
+  gameCard: {
+    background: 'linear-gradient(135deg, #111 0%, #1a1a1a 100%)',
+    border: '2px solid #333',
+    borderRadius: '20px',
+    padding: '40px 30px',
+    textAlign: 'center',
+    cursor: 'pointer',
+    transition: 'all 0.3s ease',
+    boxShadow: '0 0 20px rgba(0, 0, 0, 0.5)',
+  },
+  gameIcon: {
+    fontSize: '64px',
+    marginBottom: '20px',
+    filter: 'drop-shadow(0 0 10px rgba(255, 255, 255, 0.3))',
+  },
+  gameName: {
+    fontSize: '28px',
+    fontWeight: 800,
+    color: '#fff',
+    letterSpacing: '0.1em',
+    marginBottom: '10px',
+    textShadow: '0 0 10px rgba(255, 255, 255, 0.5)',
+  },
+  gameDescription: {
+    fontSize: '14px',
+    color: '#888',
+    marginBottom: '20px',
+    letterSpacing: '0.05em',
+  },
+};
+
+// Agregar hover effect
+if (typeof document !== 'undefined') {
+  const style = document.createElement('style');
+  style.textContent = `
+    .gameCard:hover {
+      transform: translateY(-5px);
+      border-color: #FF6B35;
+      box-shadow: 0 0 30px rgba(255, 107, 53, 0.6);
+    }
+  `;
+  document.head.appendChild(style);
+}
+
+// ─── Estilos antiguos (mantener por compatibilidad) ─────────────────────────
+const styles: Record<string, React.CSSProperties> = {
+  loadingContainer: {
+    width: '100%',
+    minHeight: '100vh',
+    background: '#0a0a0a',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    fontFamily: "'Courier New', monospace",
+  },
+  loadingText: {
+    color: '#FF6B35',
+    fontSize: 24,
+    textShadow: '0 0 20px #FF6B35',
+  },
+  container: {
+    position: 'relative',
+    width: '100%',
+    minHeight: '100vh',
+    background: '#000',
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: '40px 20px',
+    overflow: 'hidden',
+  },
       {/* Efectos de fondo con luces de neón */}
       <div style={styles.backgroundEffects}>
         <div style={styles.neonGlow1} />
@@ -126,6 +331,71 @@ function App() {
           <button
             style={styles.playButton}
             onClick={() => setCurrentGame('generala')}
+          >
+            JUGAR
+          </button>
+        </div>
+
+        {/* Card Poker */}
+        <div style={styles.gameCard}>
+          <div style={styles.gameIcon}>🃏</div>
+          <div style={styles.gameName}>POKER</div>
+          <div style={styles.gameDescription}>Texas Hold'em</div>
+          <button
+            style={styles.playButton}
+            onClick={() => setCurrentGame('poker')}
+          >
+            JUGAR
+          </button>
+        </div>
+
+        {/* Card Blackjack */}
+        <div style={styles.gameCard}>
+          <div style={styles.gameIcon}>🂡</div>
+          <div style={styles.gameName}>BLACKJACK</div>
+          <div style={styles.gameDescription}>Casino 1-4 jugadores</div>
+          <button
+            style={styles.playButton}
+            onClick={() => setCurrentGame('blackjack')}
+          >
+            JUGAR
+          </button>
+        </div>
+
+        {/* Card Rummy */}
+        <div style={styles.gameCard}>
+          <div style={styles.gameIcon}>🃟</div>
+          <div style={styles.gameName}>RUMMY</div>
+          <div style={styles.gameDescription}>Cartas multijugador</div>
+          <button
+            style={styles.playButton}
+            onClick={() => setCurrentGame('rummy')}
+          >
+            JUGAR
+          </button>
+        </div>
+
+        {/* Card Trivial */}
+        <div style={styles.gameCard}>
+          <div style={styles.gameIcon}>❓</div>
+          <div style={styles.gameName}>TRIVIAL</div>
+          <div style={styles.gameDescription}>Preguntas y respuestas</div>
+          <button
+            style={styles.playButton}
+            onClick={() => setCurrentGame('trivial')}
+          >
+            JUGAR
+          </button>
+        </div>
+
+        {/* Card Batalla Naval */}
+        <div style={styles.gameCard}>
+          <div style={styles.gameIcon}>⚓</div>
+          <div style={styles.gameName}>BATALLA NAVAL</div>
+          <div style={styles.gameDescription}>1 vs 1 estratégico</div>
+          <button
+            style={styles.playButton}
+            onClick={() => setCurrentGame('batalla')}
           >
             JUGAR
           </button>

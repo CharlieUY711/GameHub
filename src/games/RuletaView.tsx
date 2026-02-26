@@ -5,6 +5,7 @@
  * Fichas virtuales para ganancias/pérdidas
  */
 import React, { useState, useEffect, useRef } from 'react';
+import { useAuth } from '../auth/AuthContext';
 
 // ─── Config Supabase ─────────────────────────────────────────────────────────
 const SUPA_URL = import.meta.env.VITE_SUPABASE_URL || 'https://qhnmxvexkizcsmivfuam.supabase.co';
@@ -108,70 +109,73 @@ async function unirSala(id: string, nombre: string): Promise<boolean> {
 
 // ─── Componente principal ───────────────────────────────────────────────────
 export function RuletaView({ onBack }: RuletaViewProps) {
-  const [fase, setFase] = useState<'lobby' | 'sala' | 'juego'>('lobby');
-  const [nombre, setNombre] = useState('');
+  const { usuario } = useAuth();
+  const [fase, setFase] = useState<'juego' | 'multijugador'>('juego');
   const [codigo, setCodigo] = useState('');
   const [codigoInput, setCodigoInput] = useState('');
   const [jugador, setJugador] = useState<1 | 2>(1);
   const [sala, setSala] = useState<Sala | null>(null);
   const [error, setError] = useState('');
-  const [esperando, setEsperando] = useState(false);
 
-  const handleCrear = async () => {
-    if (!nombre.trim()) { setError('Ingresá tu nombre'); return; }
-    const code = genCode();
-    await crearSala(code, nombre.trim());
-    setCodigo(code);
-    setJugador(1);
-    setFase('sala');
-    setEsperando(true);
-  };
+  const nombre = usuario?.nombre || 'Jugador';
 
+  // ── Iniciar juego automáticamente al montar ─────────────────────────────────
+  useEffect(() => {
+    const iniciarJuego = async () => {
+      const code = genCode();
+      await crearSala(code, nombre);
+      setCodigo(code);
+      setJugador(1);
+      await patchSala(code, { estado: 'apuestas' });
+    };
+    iniciarJuego();
+  }, [nombre]);
+
+  // ── Unirse a sala multijugador ─────────────────────────────────────────────
   const handleUnirse = async () => {
-    if (!nombre.trim()) { setError('Ingresá tu nombre'); return; }
     if (!codigoInput.trim()) { setError('Ingresá el código'); return; }
-    const ok = await unirSala(codigoInput.toUpperCase(), nombre.trim());
+    const ok = await unirSala(codigoInput.toUpperCase(), nombre);
     if (!ok) { setError('Sala no encontrada o ya llena'); return; }
     setCodigo(codigoInput.toUpperCase());
     setJugador(2);
     setFase('juego');
   };
 
+  // ── Sincronizar sala ───────────────────────────────────────────────────────
   useEffect(() => {
-    if (fase !== 'sala' || !esperando) return;
+    if (!codigo) return;
     const iv = setInterval(async () => {
       const s = await getSala(codigo);
-      if (s?.estado === 'apuestas' || s?.estado === 'girando' || s?.estado === 'resultado') {
-        setSala(s);
-        setFase('juego');
-        setEsperando(false);
-        clearInterval(iv);
-      }
-    }, 1500);
+      if (s) setSala(s);
+    }, 1000);
     return () => clearInterval(iv);
-  }, [fase, esperando, codigo]);
+  }, [codigo]);
 
-  if (fase === 'lobby') {
+  if (fase === 'multijugador') {
     return (
-      <Lobby
-        nombre={nombre}
-        setNombre={setNombre}
-        codigoInput={codigoInput}
-        setCodigoInput={setCodigoInput}
-        error={error}
-        setError={setError}
-        onCrear={handleCrear}
-        onUnirse={handleUnirse}
-        onBack={onBack}
-      />
+      <div style={styles.fullPage}>
+        <button style={styles.backButton} onClick={onBack}>← Volver</button>
+        <div style={styles.lobbyCard}>
+          <div style={styles.title}>🎰 RULETA MULTIJUGADOR</div>
+          <div style={styles.subtitle}>Ingresa el código de la sala</div>
+          <input
+            style={styles.input}
+            placeholder="Código (ABCD)"
+            value={codigoInput}
+            onChange={e => { setCodigoInput(e.target.value.toUpperCase()); setError(''); }}
+            maxLength={4}
+            onKeyPress={(e) => e.key === 'Enter' && handleUnirse()}
+          />
+          <button style={styles.btnPrimary} onClick={handleUnirse}>
+            Unirse
+          </button>
+          {error && <div style={styles.errorMsg}>{error}</div>}
+        </div>
+      </div>
     );
   }
 
-  if (fase === 'sala') {
-    return <SalaEspera codigo={codigo} nombre={nombre} onBack={onBack} />;
-  }
-
-  if (fase === 'juego') {
+  if (fase === 'juego' && codigo) {
     return (
       <Juego
         codigo={codigo}
@@ -183,42 +187,69 @@ export function RuletaView({ onBack }: RuletaViewProps) {
     );
   }
 
-  return null;
+  return (
+    <div style={styles.fullPage}>
+      <div style={styles.loadingText}>Cargando ruleta...</div>
+    </div>
+  );
 }
 
 // ─── Lobby ──────────────────────────────────────────────────────────────────
-function Lobby({ nombre, setNombre, codigoInput, setCodigoInput, error, setError, onCrear, onUnirse, onBack }: any) {
+function Lobby({ nombre, codigoInput, setCodigoInput, error, setError, modo, setModo, onJugarSolo, onCrear, onUnirse, onBack }: any) {
   return (
     <div style={styles.fullPage}>
       <button style={styles.backButton} onClick={onBack}>← Volver</button>
       <div style={styles.lobbyCard}>
         <div style={styles.title}>🎰 RULETA</div>
-        <div style={styles.subtitle}>Casino Multijugador</div>
+        <div style={styles.subtitle}>Casino</div>
+        <div style={{ color: '#aaa', fontSize: 14, marginBottom: 24 }}>Hola, <b style={{ color: '#fff' }}>{nombre}</b></div>
 
-        <input
-          style={styles.input}
-          placeholder="Tu nombre"
-          value={nombre}
-          onChange={e => { setNombre(e.target.value); setError(''); }}
-          maxLength={12}
-        />
-
-        <button style={styles.btnPrimary} onClick={onCrear}>
-          🎰 Crear sala
-        </button>
-
-        <div style={styles.divider}><span>o uníte con código</span></div>
-
-        <div style={{ display: 'flex', gap: 8 }}>
-          <input
-            style={{ ...styles.input, flex: 1, textAlign: 'center', textTransform: 'uppercase', letterSpacing: 4, fontSize: 20, fontWeight: 700 }}
-            placeholder="ABCD"
-            value={codigoInput}
-            onChange={e => { setCodigoInput(e.target.value.toUpperCase()); setError(''); }}
-            maxLength={4}
-          />
-          <button style={styles.btnSecondary} onClick={onUnirse}>Unirse</button>
+        {/* Modo selector */}
+        <div style={{ display: 'flex', gap: 12, marginBottom: 24 }}>
+          <button
+            style={{
+              ...styles.modoButton,
+              ...(modo === 'solo' ? styles.modoButtonActive : {})
+            }}
+            onClick={() => { setModo('solo'); setError(''); }}
+          >
+            🎮 Solo
+          </button>
+          <button
+            style={{
+              ...styles.modoButton,
+              ...(modo === 'multijugador' ? styles.modoButtonActive : {})
+            }}
+            onClick={() => { setModo('multijugador'); setError(''); }}
+          >
+            👥 Multijugador
+          </button>
         </div>
+
+        {modo === 'solo' ? (
+          <button style={styles.btnPrimary} onClick={onJugarSolo}>
+            🎰 Jugar Ahora
+          </button>
+        ) : (
+          <>
+            <button style={styles.btnPrimary} onClick={onCrear}>
+              🎰 Crear sala
+            </button>
+
+            <div style={styles.divider}><span>o uníte con código</span></div>
+
+            <div style={{ display: 'flex', gap: 8 }}>
+              <input
+                style={{ ...styles.input, flex: 1, textAlign: 'center', textTransform: 'uppercase', letterSpacing: 4, fontSize: 20, fontWeight: 700 }}
+                placeholder="ABCD"
+                value={codigoInput}
+                onChange={e => { setCodigoInput(e.target.value.toUpperCase()); setError(''); }}
+                maxLength={4}
+              />
+              <button style={styles.btnSecondary} onClick={onUnirse}>Unirse</button>
+            </div>
+          </>
+        )}
 
         {error && <div style={styles.errorMsg}>{error}</div>}
       </div>
@@ -246,12 +277,13 @@ function SalaEspera({ codigo, nombre, onBack }: { codigo: string; nombre: string
 }
 
 // ─── Juego ───────────────────────────────────────────────────────────────────
-function Juego({ codigo, jugador, nombre, salaInicial, onBack }: {
+function Juego({ codigo, jugador, nombre, salaInicial, onBack, onMultijugador }: {
   codigo: string;
   jugador: 1 | 2;
   nombre: string;
   salaInicial: Sala | null;
   onBack: () => void;
+  onMultijugador?: () => void;
 }) {
   const [sala, setSala] = useState<Sala | null>(salaInicial);
   const [fichas, setFichas] = useState(1000);
@@ -635,6 +667,23 @@ const styles: Record<string, React.CSSProperties> = {
     cursor: 'pointer',
     whiteSpace: 'nowrap' as const,
   },
+  modoButton: {
+    flex: 1,
+    background: '#1a1a1a',
+    color: '#888',
+    border: '1px solid #333',
+    borderRadius: 10,
+    padding: '12px',
+    fontSize: 15,
+    fontWeight: 600,
+    cursor: 'pointer',
+    transition: 'all 0.3s ease',
+  },
+  modoButtonActive: {
+    background: '#FF6B35',
+    color: '#fff',
+    borderColor: '#FF6B35',
+  },
   divider: {
     display: 'flex',
     alignItems: 'center',
@@ -648,6 +697,12 @@ const styles: Record<string, React.CSSProperties> = {
     borderRadius: 8,
     padding: '8px 12px',
     fontSize: 13,
+    textAlign: 'center',
+  },
+  loadingText: {
+    color: '#FF6B35',
+    fontSize: 24,
+    textShadow: '0 0 20px #FF6B35',
     textAlign: 'center',
   },
   codigoGrande: {

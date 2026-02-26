@@ -4,6 +4,7 @@
  * Optimizado para celular
  */
 import React, { useState, useEffect, useRef } from 'react';
+import { useAuth } from '../auth/AuthContext';
 
 // ─── Config Supabase ─────────────────────────────────────────────────────────
 const SUPA_URL = import.meta.env.VITE_SUPABASE_URL || 'https://qhnmxvexkizcsmivfuam.supabase.co';
@@ -204,9 +205,10 @@ async function unirSala(id: string, nombre: string): Promise<boolean> {
 }
 
 // ─── Componente principal ────────────────────────────────────────────────────
-export function BatallaNavalView() {
+export function BatallaNavalView({ onBack }: { onBack?: () => void }) {
+  const { usuario } = useAuth();
   const [fase, setFase] = useState<'lobby' | 'sala'>('lobby');
-  const [nombre, setNombre] = useState('');
+  const nombre = usuario?.nombre || '';
   const [codigo, setCodigo] = useState('');
   const [codigoInput, setCodigoInput] = useState('');
   const [sala, setSala] = useState<Sala | null>(null);

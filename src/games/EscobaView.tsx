@@ -262,7 +262,7 @@ async function unirSala(id: string, nombre: string): Promise<boolean> {
 }
 
 // ─── Componente principal ────────────────────────────────────────────────────
-export function EscobaView() {
+export function EscobaView({ onBack }: { onBack?: () => void }) {
   const [fase, setFase] = useState<'lobby' | 'config' | 'sala' | 'juego'>('lobby');
   const [nombre, setNombre] = useState('');
   const [codigo, setCodigo] = useState('');

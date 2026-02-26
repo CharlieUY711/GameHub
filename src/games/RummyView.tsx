@@ -5,6 +5,7 @@
  * Optimizado para celular en landscape
  */
 import React, { useState, useEffect, useRef } from 'react';
+import { useAuth } from '../auth/AuthContext';
 
 // ─── Config Supabase ─────────────────────────────────────────────────────────
 const SUPA_URL = import.meta.env.VITE_SUPABASE_URL || 'https://qhnmxvexkizcsmivfuam.supabase.co';
@@ -229,9 +230,10 @@ function calcularPuntosCarta(carta: Carta): number {
 }
 
 // ─── Componente principal ────────────────────────────────────────────────────
-export function RummyView() {
+export function RummyView({ onBack }: { onBack?: () => void }) {
+  const { usuario } = useAuth();
   const [fase, setFase] = useState<'lobby' | 'sala' | 'juego'>('lobby');
-  const [nombre, setNombre] = useState('');
+  const nombre = usuario?.nombre || '';
   const [codigo, setCodigo] = useState('');
   const [codigoInput, setCodigoInput] = useState('');
   const [sala, setSala] = useState<Sala | null>(null);

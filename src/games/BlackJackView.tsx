@@ -175,7 +175,7 @@ async function unirSala(id: string, nombre: string): Promise<boolean> {
 }
 
 // ─── Componente principal ────────────────────────────────────────────────────
-export function BlackJackView() {
+export function BlackJackView({ onBack }: { onBack?: () => void }) {
   const { usuario } = useAuth();
   const [fase, setFase] = useState<'lobby' | 'sala'>('lobby');
   const [nombre, setNombre] = useState(usuario?.nombre || '');

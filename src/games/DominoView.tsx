@@ -162,7 +162,7 @@ async function unirSala(id: string, nombre: string): Promise<boolean> {
 }
 
 // ─── Componente principal ────────────────────────────────────────────────────
-export function DominoView() {
+export function DominoView({ onBack }: { onBack?: () => void }) {
   const [fase, setFase] = useState<'lobby' | 'sala'>('lobby');
   const [nombre, setNombre] = useState('');
   const [codigo, setCodigo] = useState('');

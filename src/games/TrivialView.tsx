@@ -5,6 +5,7 @@
  * Optimizado para celular portrait
  */
 import React, { useState, useEffect, useRef } from 'react';
+import { useAuth } from '../auth/AuthContext';
 
 // ─── Config ────────────────────────────────────────────────────────────────
 const SUPA_URL = import.meta.env.VITE_SUPABASE_URL || 'https://qhnmxvexkizcsmivfuam.supabase.co';
@@ -1065,8 +1066,9 @@ function Resultados({ sala, onVolver }: {
 }
 
 // ─── Componente Principal ──────────────────────────────────────────────────
-export default function TrivialView() {
-  const [nombre, setNombre] = useState('');
+export default function TrivialView({ onBack }: { onBack?: () => void }) {
+  const { usuario } = useAuth();
+  const nombre = usuario?.nombre || '';
   const [codigo, setCodigo] = useState('');
   const [error, setError] = useState('');
   const [sala, setSala] = useState<Sala | null>(null);
